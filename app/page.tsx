@@ -223,6 +223,18 @@ const sections: { id: string; title: string; summary: string; tools: Tool[] }[] 
         title: "Personnalisation",
         description: "Vectorise les empreintes / dessins clients en SVG dimensionné selon format et taille. Génère le fichier prêt pour Illustrator/Gravograph.",
       },
+      {
+        href: "/admin/projets",
+        emoji: "🗃️",
+        title: "Tous les projets perso",
+        description: "Tous les projets personnalisés depuis le début (aluminium + argent) : recherche par numéro de commande, prénom, email, taille ou date, aperçu du dessin et téléchargement des fichiers.",
+      },
+      {
+        href: "/admin/devis",
+        emoji: "📝",
+        title: "Gestion des devis",
+        description: "Devis sur mesure en cours (30 derniers jours) : envoi du devis, relance de la cliente, remplacement du design, clôture.",
+      },
     ],
   },
   {

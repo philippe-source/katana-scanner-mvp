@@ -131,11 +131,16 @@ export default function DevisPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <div>
             <h1 style={{ fontSize: "1.4rem", fontWeight: 700, margin: 0 }}>Gestion des devis</h1>
-            <p style={{ color: "#71717a", fontSize: "0.82rem", marginTop: 4 }}>Demandes de validation design avant achat</p>
+            <p style={{ color: "#71717a", fontSize: "0.82rem", marginTop: 4 }}>Demandes de validation design avant achat — 30 derniers jours</p>
           </div>
-          <button onClick={() => load(true)} style={{ background: "#27272a", color: "#a1a1aa", border: "none", borderRadius: 6, padding: "0.4rem 0.9rem", fontSize: "0.8rem", cursor: "pointer" }}>
-            ↻ Actualiser
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.9rem" }}>
+            <Link href="/admin/projets" style={{ color: "#a1a1aa", fontSize: "0.8rem", textDecoration: "none" }}>
+              Tous les projets (recherche par n° de commande) →
+            </Link>
+            <button onClick={() => load(true)} style={{ background: "#27272a", color: "#a1a1aa", border: "none", borderRadius: 6, padding: "0.4rem 0.9rem", fontSize: "0.8rem", cursor: "pointer" }}>
+              ↻ Actualiser
+            </button>
+          </div>
         </div>
 
         {error && (
