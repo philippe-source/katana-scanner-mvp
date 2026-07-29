@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 
 // Rattache les projets de personnalisation à leurs commandes Shopify.
 //
@@ -209,9 +208,8 @@ async function chercherCommande(numero: string) {
   };
 }
 
+// Comme /api/admin/devis : hors du portail de connexion (voir middleware.ts, /api/admin exclu)
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Auth required" }, { status: 401 });
   if (!STORE || !TOKEN) return NextResponse.json({ error: "Shopify non configuré" }, { status: 503 });
 
   const params = new URL(req.url).searchParams;

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 
 // Liste TOUS les projets de personnalisation (aluminium + argent), depuis le début,
 // qu'ils soient encore en devis, déjà commandés, ou restés en brouillon.
@@ -168,9 +167,8 @@ function parse(v: string | null): Record<string, unknown> | null {
   }
 }
 
+// Comme /api/admin/devis : hors du portail de connexion (voir middleware.ts, /api/admin exclu)
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Auth required" }, { status: 401 });
   if (!REDIS_URL || !REDIS_TOKEN) {
     return NextResponse.json({ error: "Storage non configuré" }, { status: 503 });
   }
