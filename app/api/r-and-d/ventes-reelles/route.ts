@@ -106,7 +106,7 @@ async function resoudreProduit(p: ProduitDemande): Promise<{ ids: number[]; skus
   const nomRaw = (p.shopifySearch || p.nom || "").trim();
   if (!tagRaw && !nomRaw) return { ids: [], skus: [], vids: [] };
 
-  const rck = `mood:resolve:v2:${tagRaw}|${nomRaw}`.slice(0, 120);
+  const rck = `mood:resolve:v3:${tagRaw}|${nomRaw}`.slice(0, 120);
   const rc = (await redisGet(rck)) as { ids: number[]; skus: string[]; vids: number[] } | null;
   if (rc && Array.isArray(rc.ids)) return rc;
 
@@ -126,11 +126,21 @@ async function resoudreProduit(p: ProduitDemande): Promise<{ ids: number[]; skus
     return data?.data?.products?.edges || [];
   }
 
-  // 1) Si un tag est renseigné → recherche par tag.
+  // 1) Recherche par tag — TOLÉRANTE aux variantes de saisie (« White shadow » vs vrai tag « white-shadow »).
+  //    On essaie le tag tel quel, en minuscules, et espaces→tirets ; + le nom en version « taggable ».
+  //    Union des résultats (dédupliqués) → attrape les produits même si le tag a été mal orthographié.
   let parTag = false;
   let edges: Array<{ node: Node }> = [];
-  if (tagRaw) {
-    edges = await chercher(`tag:'${tagRaw.replace(/'/g, "")}'`);
+  if (tagRaw || nomRaw) {
+    const cand = new Set<string>();
+    const add = (t: string) => { const v = (t || "").trim().replace(/'/g, ""); if (v) cand.add(v); };
+    if (tagRaw) { add(tagRaw); add(tagRaw.toLowerCase()); add(tagRaw.toLowerCase().replace(/\s+/g, "-")); }
+    if (nomRaw) { add(nomRaw.toLowerCase().replace(/\s+/g, "-")); }
+    const seen = new Set<string>();
+    for (const t of cand) {
+      const found = await chercher(`tag:'${t}'`);
+      for (const e of found) { if (!seen.has(e.node.id)) { seen.add(e.node.id); edges.push(e); } }
+    }
     parTag = edges.length > 0;
   }
   // 2) Pas de tag, OU champ tag mal rempli (= le nom au lieu d'un vrai tag → 0 résultat)
