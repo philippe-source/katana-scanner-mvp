@@ -77,15 +77,19 @@ export async function POST(request: Request) {
     const byId = new Map<string, { units: number; total: number }>();
     let oc: string | null = null;
     do {
-      const j: any = await gql(`query($q:String!,$c:String){orders(first:100,query:$q,after:$c){pageInfo{hasNextPage endCursor} edges{node{lineItems(first:30){edges{node{quantity discountedTotalSet{shopMoney{amount}} product{id}}}}}}}}`, { q: `created_at:>=${since}`, c: oc });
+      const j: any = await gql(`query($q:String!,$c:String){orders(first:100,query:$q,after:$c){pageInfo{hasNextPage endCursor} edges{node{cancelledAt lineItems(first:30){edges{node{quantity originalTotalSet{shopMoney{amount}} discountAllocations{allocatedAmountSet{shopMoney{amount}}} product{id}}}}}}}}`, { q: `created_at:>=${since}`, c: oc });
       const o = j?.data?.orders;
       if (!o) break;
       for (const e of o.edges) {
+        if (e.node.cancelledAt) continue; // commande annulée = pas d'argent encaissé
         orders++;
         for (const li of e.node.lineItems.edges) {
           const pid = li.node.product?.id;
           if (pid && prodIds.has(pid)) {
-            const amt = parseFloat(li.node.discountedTotalSet.shopMoney.amount || "0");
+            // argent réellement encaissé = prix de départ MOINS toutes les remises (ligne + code promo de commande)
+            const orig = parseFloat(li.node.originalTotalSet?.shopMoney?.amount || "0");
+            const alloc = (li.node.discountAllocations || []).reduce((s: number, d: any) => s + parseFloat(d.allocatedAmountSet?.shopMoney?.amount || "0"), 0);
+            const amt = orig - alloc;
             total += amt; units += li.node.quantity;
             const cur = byId.get(pid) || { units: 0, total: 0 };
             cur.units += li.node.quantity; cur.total += amt; byId.set(pid, cur);
