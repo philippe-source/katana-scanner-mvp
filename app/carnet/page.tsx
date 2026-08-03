@@ -78,7 +78,19 @@ export default function CarnetPage() {
       if (!m.has(key)) { m.set(key, []); labels.set(key, raw); }
       m.get(key)!.push(c);
     }
-    return [...m.entries()].map(([k, v]) => [labels.get(k) || k, v] as [string, Collection[]]);
+    const entries = [...m.entries()].map(([k, v]) => [labels.get(k) || k, v] as [string, Collection[]]);
+    // tri des mois dans l'ordre du calendrier (plus récent en haut), « Sans mois » à la fin
+    const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+    const rang = (label: string) => {
+      const n = norm(label);
+      const mi = MOIS.findIndex((mo) => n.includes(norm(mo)));
+      const y = (label.match(/\d{4}/) || [])[0];
+      if (mi < 0 && !y) return -1; // "Sans mois" -> fin
+      return (y ? parseInt(y) : 0) * 100 + (mi >= 0 ? mi + 1 : 0);
+    };
+    if (mode === "alpha") entries.sort((a, b) => a[0].localeCompare(b[0], "fr"));
+    else entries.sort((a, b) => { const ra = rang(a[0]), rb = rang(b[0]); if (ra < 0) return 1; if (rb < 0) return -1; return rb - ra; });
+    return entries;
   })();
 
   // produits (addons) qui correspondent à la recherche, tous collections confondues
