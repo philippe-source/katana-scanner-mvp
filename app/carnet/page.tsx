@@ -69,13 +69,16 @@ export default function CarnetPage() {
   });
   const colGroups: [string, Collection[]][] = (() => {
     const m = new Map<string, Collection[]>();
+    const labels = new Map<string, string>(); // clé regroupée -> libellé affiché (le 1er vu)
     const list = mode === "alpha" ? [...filteredCols].sort((a, b) => a.name.localeCompare(b.name, "fr")) : filteredCols;
     for (const c of list) {
-      const k = mode === "alpha" ? (c.name.trim()[0] || "#").toUpperCase() : (c.month?.trim() || "Sans mois");
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(c);
+      const raw = mode === "alpha" ? (c.name.trim()[0] || "#").toUpperCase() : (c.month?.trim() || "Sans mois");
+      // même mois/année = même groupe, peu importe accent, majuscule ou espaces en trop
+      const key = mode === "alpha" ? raw : (norm(raw).replace(/\s+/g, " ").trim() || "sans mois");
+      if (!m.has(key)) { m.set(key, []); labels.set(key, raw); }
+      m.get(key)!.push(c);
     }
-    return [...m.entries()];
+    return [...m.entries()].map(([k, v]) => [labels.get(k) || k, v] as [string, Collection[]]);
   })();
 
   // produits (addons) qui correspondent à la recherche, tous collections confondues
