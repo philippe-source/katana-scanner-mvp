@@ -16,11 +16,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "GEMINI_API_KEY manquante côté serveur" }, { status: 500 });
   }
 
-  let body: { addon?: string; couleurRef?: string; note?: string | null };
+  let body: { addon?: string; couleurRef?: string; note?: string | null; emailSurfaceOnly?: boolean };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
 
-  const { addon, couleurRef, note } = body;
+  const { addon, couleurRef, note, emailSurfaceOnly } = body;
+  const surfaceRule = emailSurfaceOnly
+    ? `- APPLIQUE la couleur et la finition de l'Image 2 UNIQUEMENT sur la SURFACE ÉMAILLÉE EXTÉRIEURE de l'addon (la bande décorative visible sur le dessus et les côtés). NE recolore SURTOUT PAS l'intérieur de l'anneau, ni les bords/rails métalliques nus : l'intérieur de la bague et tout métal apparent (argent 925 / acier poli) restent EXACTEMENT dans leur couleur et finition d'origine, totalement inchangés.`
+    : `- APPLIQUE la couleur et la finition de matière de l'Image 2 sur toute la surface métallique de l'addon (extérieur ET intérieur visible).`;
   if (!addon || !couleurRef) {
     return NextResponse.json({ error: "Il faut une image d'addon ET une image de référence couleur." }, { status: 400 });
   }
@@ -48,7 +51,7 @@ Recolorier l'addon (Image 1) avec la COULEUR et la TEXTURE de matière de la ré
 RÈGLES STRICTES :
 - PRÉSERVE la forme, les proportions, l'angle de vue, l'éclairage, le fond, l'ombre de l'addon de l'Image 1 — pixel-faithful.
 - PRÉSERVE intégralement toute gravure, motif, sertissage, décor, texte présent sur l'addon — ne pas modifier les détails, juste la couleur du fond métallique.
-- APPLIQUE la couleur et la finition de matière de l'Image 2 sur toute la surface métallique de l'addon (extérieur ET intérieur visible).
+${surfaceRule}
 - Si l'Image 2 montre une finition brossée → addon brossé. Si miroir poli → addon poli. Si sablé/mat → sablé/mat. Si anodisé pastel → anodisé pastel. Reproduire fidèlement la TEXTURE de surface, pas juste la teinte moyenne.
 - Si des pierres, zircons, diamants, perles sont présents sur l'addon original → les conserver EXACTEMENT comme dans l'Image 1 (pas de recoloration des pierres).
 - Si une gravure noire ou colorée est présente → la conserver dans sa couleur d'origine.

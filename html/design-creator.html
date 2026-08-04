@@ -777,6 +777,10 @@ Ou : retire le fond et remplace par blanc seamless." style="width:100%;padding:0
     <label style="display:block;font-size:0.78rem;font-weight:600;color:var(--gris);margin-bottom:0.3rem;">💬 Note (optionnel)</label>
     <textarea id="recolor-note" rows="2" placeholder="Ex : finition brossée mat · garde la gravure noire · finition plus rosée que la ref · etc." style="width:100%;padding:0.5rem 0.7rem;border:1px solid #fbcfe8;border-radius:6px;font-size:0.85rem;font-family:inherit;resize:vertical;"></textarea>
   </div>
+  <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.7rem;font-size:0.85rem;cursor:pointer;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:0.6rem 0.7rem;">
+    <input type="checkbox" id="recolor-email-surface" style="width:1.05rem;height:1.05rem;cursor:pointer;">
+    <span>🎨 <strong>Émail</strong> — ne recolorer que la surface (l'intérieur de la bague reste argent)</span>
+  </label>
   <button id="btn-recolor" onclick="lancerRecolor()" style="width:100%;padding:0.8rem;background:#ec4899;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem;margin-top:1rem;" disabled>🎨 Recolorier l'addon</button>
   <div id="recolor-result" style="margin-top:1rem;"></div>
 </div>
@@ -2160,6 +2164,7 @@ async function handleRecolorCouleur(e) {
 async function lancerRecolor() {
   if (!recolorAddonData || !recolorCouleurData) { alert('Charge l\'addon ET la référence couleur'); return; }
   const note = document.getElementById('recolor-note')?.value?.trim() || null;
+  const emailSurfaceOnly = document.getElementById('recolor-email-surface')?.checked || false;
   const btn = document.getElementById('btn-recolor');
   const resultZone = document.getElementById('recolor-result');
   btn.disabled = true;
@@ -2169,7 +2174,7 @@ async function lancerRecolor() {
     const r = await fetch('/api/design-creator-recolor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ addon: recolorAddonData, couleurRef: recolorCouleurData, note }),
+      body: JSON.stringify({ addon: recolorAddonData, couleurRef: recolorCouleurData, note, emailSurfaceOnly }),
     });
     const text = await r.text();
     let data;
