@@ -43,6 +43,7 @@ export default function CarnetPage() {
   const [draft, setDraft] = useState("");
   const [draft2, setDraft2] = useState("");
   const [printing, setPrinting] = useState(false);
+  const [printMonth, setPrintMonth] = useState<{ label: string; items: Collection[] } | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/carnet").then((r) => r.json()).then((d) => { setCols(d.collections || []); setCanEdit(!!d.canEdit); setLoading(false); }).catch(() => setLoading(false));
@@ -50,7 +51,7 @@ export default function CarnetPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!printing) return;
-    const t = setTimeout(() => { window.print(); setPrinting(false); }, 600);
+    const t = setTimeout(() => { window.print(); setPrinting(false); setPrintMonth(null); }, 600);
     return () => clearTimeout(t);
   }, [printing]);
 
@@ -190,7 +191,13 @@ export default function CarnetPage() {
           {colGroups.length === 0 && matchedAddons.length === 0 && <div className="empty">Aucun résultat{q ? ` pour « ${q} »` : ""}.</div>}
           {colGroups.map(([label, items]) => (
             <section className="cgroup" key={label}>
-              <h3 className="gdiv"><span>{label}</span></h3>
+              <h3 className="gdiv">
+                <span>{label}</span>
+                {mode === "mois" && (
+                  <button className="btn ghost sm printmonth-btn" title="Imprimer les nouveautés de ce mois"
+                    onClick={() => { setPrintMonth({ label, items }); setPrinting(true); }}>🖨️ Imprimer le mois</button>
+                )}
+              </h3>
               <div className="grid">
                 {items.map((c) => {
                   const cover = c.cover || c.addons.flatMap((a) => a.photos || [])[0] || c.addons.flatMap((a) => a.croquis || [])[0];
@@ -284,11 +291,27 @@ export default function CarnetPage() {
       </div>
 
       {/* EXPORT PDF — toutes les fiches de la collection */}
-      {printing && col && (
+      {printing && col && !printMonth && (
         <div className="print-all">
           <h1 className="print-coltitle">{col.name} {col.month ? `· ${col.month}` : ""}</h1>
           {col.addons.map((a) => (
             <div className="print-fiche" key={a.id}><FicheRender addon={a} /></div>
+          ))}
+        </div>
+      )}
+
+      {/* EXPORT — toutes les nouveautés d'un mois */}
+      {printing && printMonth && (
+        <div className="print-all">
+          <h1 className="print-monthtitle">Nouveautés · {printMonth.label}</h1>
+          {printMonth.items.map((c) => (
+            <div className="print-colblock" key={c.id}>
+              <h2 className="print-coltitle">{c.name}</h2>
+              {c.addons.length === 0 && <p className="print-empty">— aucune pièce —</p>}
+              {c.addons.map((a) => (
+                <div className="print-fiche" key={a.id}><FicheRender addon={a} /></div>
+              ))}
+            </div>
           ))}
         </div>
       )}

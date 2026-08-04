@@ -200,6 +200,18 @@
   .carnet.printing .print-fiche:last-child { page-break-after: auto; }
 }
 
+/* Bouton "Imprimer le mois" dans l'en-tête de mois */
+.carnet .gdiv { display: flex; align-items: center; gap: 12px; }
+.carnet .printmonth-btn { margin-left: auto; font-size: 12.5px; white-space: nowrap; }
+@media print {
+  .carnet .printmonth-btn { display: none !important; }
+  .carnet.printing .print-monthtitle { text-align: center; font-weight: 700; font-size: 26px; margin: 0 0 30px; }
+  .carnet.printing .print-colblock { page-break-before: always; }
+  .carnet.printing .print-colblock:first-of-type { page-break-before: avoid; }
+  .carnet.printing .print-colblock .print-coltitle { page-break-after: auto !important; text-align: left; font-style: normal; font-size: 20px; margin: 10px 0 16px; }
+  .carnet.printing .print-empty { color: #999; font-style: italic; }
+}
+
 /* Édition nom + date de collection */
 .col-headedit { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; flex: 1; }
 .col-nameinput { font-family: "Didot","Bodoni 72","Playfair Display",Georgia,serif; font-size: 22px; color: var(--rose); border: 1px solid #eadfce; border-radius: 6px; padding: 6px 10px; min-width: 220px; }
