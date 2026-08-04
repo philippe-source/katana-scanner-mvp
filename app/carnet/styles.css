@@ -205,11 +205,14 @@
 .carnet .printmonth-btn { margin-left: auto; font-size: 12.5px; white-space: nowrap; }
 @media print {
   .carnet .printmonth-btn { display: none !important; }
-  .carnet.printing .print-monthtitle { text-align: center; font-weight: 700; font-size: 26px; margin: 0 0 30px; }
-  .carnet.printing .print-colblock { page-break-before: always; }
-  .carnet.printing .print-colblock:first-of-type { page-break-before: avoid; }
-  .carnet.printing .print-colblock .print-coltitle { page-break-after: auto !important; text-align: left; font-style: normal; font-size: 20px; margin: 10px 0 16px; }
-  .carnet.printing .print-empty { color: #999; font-style: italic; }
+  .carnet.printing .print-monthtitle { text-align: center; font-weight: 700; font-size: 24px; margin: 0 0 22px; }
+  /* Vue compacte : petits carrés, 2 par 2 */
+  .carnet.printing .print-monthgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .carnet.printing .print-card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; text-align: center; page-break-inside: avoid; }
+  .carnet.printing .print-card-img { width: 100%; height: 160px; object-fit: cover; border-radius: 9px; border: 1px solid #eee; }
+  .carnet.printing .print-card-ph { height: 160px; display: flex; align-items: center; justify-content: center; background: #f5efe3; border-radius: 9px; color: #c9a86a; font-size: 26px; }
+  .carnet.printing .print-card-nom { font-weight: 600; margin-top: 10px; font-size: 15px; color: #3a2c1a; }
+  .carnet.printing .print-card-meta { color: #999; font-size: 12px; margin-top: 2px; }
 }
 
 /* Édition nom + date de collection */

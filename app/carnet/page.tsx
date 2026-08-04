@@ -300,19 +300,25 @@ export default function CarnetPage() {
         </div>
       )}
 
-      {/* EXPORT — toutes les nouveautés d'un mois */}
+      {/* EXPORT — nouveautés du mois, vue compacte (petits carrés, 2 par 2) */}
       {printing && printMonth && (
-        <div className="print-all">
+        <div className="print-all print-month">
           <h1 className="print-monthtitle">Nouveautés · {printMonth.label}</h1>
-          {printMonth.items.map((c) => (
-            <div className="print-colblock" key={c.id}>
-              <h2 className="print-coltitle">{c.name}</h2>
-              {c.addons.length === 0 && <p className="print-empty">— aucune pièce —</p>}
-              {c.addons.map((a) => (
-                <div className="print-fiche" key={a.id}><FicheRender addon={a} /></div>
-              ))}
-            </div>
-          ))}
+          <div className="print-monthgrid">
+            {printMonth.items.map((c) => {
+              const cover = c.cover || c.addons.flatMap((a) => a.photos || [])[0] || c.addons.flatMap((a) => a.croquis || [])[0];
+              return (
+                <div className="print-card" key={c.id}>
+                  {cover
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img className="print-card-img" src={cover} alt="" />
+                    : <div className="print-card-ph">✎</div>}
+                  <div className="print-card-nom">{c.name}</div>
+                  <div className="print-card-meta">{c.addons.length} pièce{c.addons.length > 1 ? "s" : ""}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
