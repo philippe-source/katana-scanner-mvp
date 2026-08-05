@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { recordGeminiImages } from "@/lib/gemini-counter";
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-3-pro-image-preview";
@@ -927,6 +928,7 @@ export async function POST(req: Request) {
     }
     const res = await appelGeminiMulti(images, action, note, format, theme, mode, gender, age, qualite);
     if (res.error) return NextResponse.json({ error: res.error }, { status: 500 });
+    await recordGeminiImages(1, qualite);
     return NextResponse.json({ image: res.image });
   }
 
@@ -944,11 +946,14 @@ export async function POST(req: Request) {
       "multi-16-9": "Paysage 16:9 (FB cover)",
     };
     const results = await Promise.all(ratios.map(r => appelGemini(image, r, note, null, theme, mode, gender, age, qualite).then(res => ({ ...res, ratio: r, label: labels[r] }))));
+    const okCount = results.filter(r => r.image && !r.error).length;
+    await recordGeminiImages(okCount, qualite);
     return NextResponse.json({ resultats: results });
   }
 
   // Cas simple : 1 appel — le format choisi par l'utilisateur override le ratio par défaut de l'action
   const res = await appelGemini(image, action, note, format, theme, mode, gender, age, qualite);
   if (res.error) return NextResponse.json({ error: res.error }, { status: 500 });
+  await recordGeminiImages(1, qualite);
   return NextResponse.json({ image: res.image });
 }
