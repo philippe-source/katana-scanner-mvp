@@ -707,7 +707,7 @@ function FileZone({ title, items, onChange }: { title: string; items: FileRef[];
 
 // ─────────────── Onglet « Projet Icelea — Amila » ───────────────
 const ICELEA_CODE = "M00d2025";
-type IceProjet = { id: string; nom: string; image: string; statut: string; date_premier_mail: string; date_sortie: string; mails: string; corrections: string[]; photo: string; mtrl: string };
+type IceProjet = { id: string; nom: string; image: string; statut: string; date_creation: string; date_premier_mail: string; date_sortie: string; mails: string; corrections: string[]; photo: string; mtrl: string };
 const ICE_STATUTS: { v: string; label: string; cls: string }[] = [
   { v: "", label: "⚪️ Pas reçu", cls: "st-rien" },
   { v: "recu", label: "🟢 Proto reçu · OK", cls: "st-recu" },
@@ -716,6 +716,16 @@ const ICE_STATUTS: { v: string; label: string; cls: string }[] = [
   { v: "sorti", label: "🩵 Sorti", cls: "st-sorti" },
 ];
 const iceCls = (v: string) => (ICE_STATUTS.find((s) => s.v === v) || ICE_STATUTS[0]).cls;
+// Ancienneté depuis la date de création : orange après 2 mois, rose après 4 mois.
+const iceAgeCls = (d: string): string => {
+  if (!d) return "";
+  const t = new Date(d + "T00:00:00Z").getTime();
+  if (isNaN(t)) return "";
+  const months = (Date.now() - t) / (1000 * 60 * 60 * 24 * 30.44);
+  if (months >= 4) return "age-rose";
+  if (months >= 2) return "age-orange";
+  return "";
+};
 
 async function iceApi(action: string, extra: Record<string, unknown> = {}) {
   const r = await fetch("/api/carnet/icelea", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: ICELEA_CODE, action, ...extra }) });
@@ -820,7 +830,10 @@ function IceleaBoard() {
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img className="ice-thumb" src={p.image} alt="" />
                 : <div className="ice-thumb ph">📦</div>}
-              <span className={"ice-name " + iceCls(p.statut)}>{p.nom}</span>
+              <div className="ice-rowmain">
+                <span className={"ice-name " + iceCls(p.statut)}>{p.nom}</span>
+                {p.date_creation && <span className={"ice-created " + iceAgeCls(p.date_creation)}>💡 Créé le {fdate(p.date_creation)}</span>}
+              </div>
               <select className="ice-statut" value={p.statut} onClick={(e) => e.stopPropagation()} onChange={(e) => patch(p.id, { statut: e.target.value })}>
                 {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
               </select>
@@ -858,6 +871,11 @@ function IceleaBoard() {
               <label className="btn ghost sm">{open.image ? "Changer l'image" : "Ajouter l'image du proto"}
                 <input type="file" accept="image/*" hidden disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); const u = await iceUpload(f); if (u) await patch(open.id, { image: u }); setBusy(false); }} />
               </label>
+            </div>
+
+            <div className="ice-field">
+              <label>Date de création (idée / 1er mail à Icelea)</label>
+              <input type="date" defaultValue={open.date_creation} onBlur={(e) => patch(open.id, { date_creation: e.target.value })} />
             </div>
 
             <div className="ice-field">
