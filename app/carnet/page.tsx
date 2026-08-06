@@ -707,7 +707,7 @@ function FileZone({ title, items, onChange }: { title: string; items: FileRef[];
 
 // ─────────────── Onglet « Projet Icelea — Amila » ───────────────
 const ICELEA_CODE = "M00d2025";
-type IceProjet = { id: string; nom: string; image: string; statut: string; date_creation: string; date_premier_mail: string; date_sortie: string; mails: string; corrections: string[]; photo: string; mtrl: string };
+type IceProjet = { id: string; nom: string; image: string; protos: string[]; statut: string; date_creation: string; date_premier_mail: string; date_sortie: string; mails: string; corrections: string[]; photo: string; mtrl: string };
 const ICE_STATUTS: { v: string; label: string; cls: string }[] = [
   { v: "", label: "⚪️ Pas reçu", cls: "st-rien" },
   { v: "recu", label: "🟢 Proto reçu · OK", cls: "st-recu" },
@@ -788,7 +788,7 @@ function IceleaBoard() {
       const ca = await api("createAddon", { collectionId: target.id, nom: p.nom });
       if (!ca?.addon?.id) throw new Error("addon");
       // On emmène TOUTES les photos du proto : image de départ + corrections + photo reçue (sans doublon).
-      const photos = Array.from(new Set([p.image, ...(p.corrections || []), p.photo].filter(Boolean)));
+      const photos = Array.from(new Set([...(p.protos || []), p.image, ...(p.corrections || []), p.photo].filter(Boolean)));
       await api("updateAddon", { id: ca.addon.id, patch: { photos, mtrl: p.mtrl, date_sortie: p.date_sortie } });
       alert("✅ « " + p.nom + " » a été dupliqué dans le Carnet → collection « Sorties Icelea ».");
     } catch {
@@ -827,13 +827,15 @@ function IceleaBoard() {
           {projets.length === 0 && <div className="empty">Aucun projet pour l’instant. Clique « + Nouveau projet ».</div>}
           {projets.map((p) => (
             <div className="ice-row" key={p.id} onClick={() => setOpenId(p.id)}>
-              {p.image
+              {((p.protos && p.protos[0]) || p.image)
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img className="ice-thumb" src={p.image} alt="" />
+                ? <img className="ice-thumb" src={(p.protos && p.protos[0]) || p.image} alt="" />
                 : <div className="ice-thumb ph">📦</div>}
               <div className="ice-rowmain">
                 <span className={"ice-name " + iceCls(p.statut)}>{p.nom}</span>
-                {p.date_creation && <span className={"ice-created " + iceAgeCls(p.date_creation)}>💡 Créé le {fdate(p.date_creation)}</span>}
+                {p.date_creation
+                  ? <span className={"ice-created " + iceAgeCls(p.date_creation)}>💡 Créé le {fdate(p.date_creation)}</span>
+                  : <span className="ice-created ice-created-empty">💡 date de création à définir</span>}
               </div>
               <select className="ice-statut" value={p.statut} onClick={(e) => e.stopPropagation()} onChange={(e) => patch(p.id, { statut: e.target.value })}>
                 {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
@@ -853,15 +855,7 @@ function IceleaBoard() {
               <button className="btn ghost sm" onClick={() => setOpenId(null)}>✓ Fermer</button>
             </div>
 
-            <div className="ice-detail-img">
-              {open.image
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={open.image} alt="" />
-                : <div className="ice-detail-ph">📦</div>}
-              <label className="btn ghost sm">{open.image ? "Changer l'image" : "Ajouter l'image du proto"}
-                <input type="file" accept="image/*" hidden disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); const u = await iceUpload(f); if (u) await patch(open.id, { image: u }); setBusy(false); }} />
-              </label>
-            </div>
+            <IceImgZone label="Photos du proto (Proto 1, 2, 3…)" itemLabel="Proto" items={open.protos || []} onChange={(v) => patch(open.id, { protos: v })} />
 
             <div className="ice-field">
               <label>Date de création (idée / 1er mail à Icelea)</label>
@@ -897,7 +891,7 @@ function IceleaBoard() {
               <textarea defaultValue={open.mails} rows={6} placeholder="Colle ici les mails échangés avec Icelea…" onBlur={(e) => patch(open.id, { mails: e.target.value })} />
             </div>
 
-            <IceCorrZone items={open.corrections || []} onChange={(v) => patch(open.id, { corrections: v })} />
+            <IceImgZone label="Corrections (Correction 1, 2, 3…)" itemLabel="Correction" items={open.corrections || []} onChange={(v) => patch(open.id, { corrections: v })} />
 
             <div className="ice-field">
               <label>Photo du produit reçu (dans son sachet)</label>
@@ -928,7 +922,7 @@ function IceleaBoard() {
   );
 }
 
-function IceCorrZone({ items, onChange }: { items: string[]; onChange: (v: string[]) => void }) {
+function IceImgZone({ label, itemLabel, items, onChange }: { label: string; itemLabel: string; items: string[]; onChange: (v: string[]) => void }) {
   const [busy, setBusy] = useState(false);
   const inp = useRef<HTMLInputElement>(null);
   async function add(files: FileList | null) {
@@ -941,17 +935,17 @@ function IceCorrZone({ items, onChange }: { items: string[]; onChange: (v: strin
   }
   return (
     <div className="ice-field">
-      <label>Corrections (une image par correction)</label>
+      <label>{label}</label>
       <div className="ice-corr">
         {items.map((u, i) => (
           <div className="ice-corr-item" key={u + i}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={u} alt="" />
-            <span className="ice-corr-lbl">Correction {i + 1}</span>
+            <span className="ice-corr-lbl">{itemLabel} {i + 1}</span>
             <button className="rm" onClick={() => onChange(items.filter((_, j) => j !== i))}>×</button>
           </div>
         ))}
-        <div className={"ice-corr-add" + (busy ? " busy" : "")} onClick={() => inp.current?.click()}>{busy ? "Envoi…" : "＋ ajouter une correction"}</div>
+        <div className={"ice-corr-add" + (busy ? " busy" : "")} onClick={() => inp.current?.click()}>{busy ? "Envoi…" : "＋ ajouter"}</div>
         <input ref={inp} type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} />
       </div>
     </div>

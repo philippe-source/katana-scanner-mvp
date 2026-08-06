@@ -13,7 +13,8 @@ const ok = (c?: string | null) => (c || "") === CODE;
 type Projet = {
   id: string;
   nom: string;
-  image: string;      // image du proto / dessin
+  image: string;      // (ancien) image unique du proto — conservé pour compat
+  protos: string[];   // photos du proto reçu, une par tour (Proto 1, 2, …)
   statut: string;     // "" (pas reçu) | recu | correction | annule | sorti
   date_creation: string;   // naissance de l'idée / 1er mail à Icelea (base de l'ancienneté)
   date_premier_mail: string;
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       id: randomUUID().slice(0, 8),
       nom: String(b.nom || "Nouveau projet"),
       image: String(b.image || ""),
+      protos: [],
       statut: "",
       date_creation: "",
       date_premier_mail: "",
@@ -73,7 +75,9 @@ export async function POST(request: Request) {
     for (const k of ["nom", "image", "statut", "date_creation", "date_premier_mail", "date_sortie", "mails", "photo", "mtrl"] as const) {
       if (patch[k] !== undefined) (p as Record<string, unknown>)[k] = String(patch[k]);
     }
-    if (Array.isArray(patch.corrections)) (p as Record<string, unknown>).corrections = (patch.corrections as unknown[]).map(String);
+    for (const arr of ["protos", "corrections"] as const) {
+      if (Array.isArray(patch[arr])) (p as Record<string, unknown>)[arr] = (patch[arr] as unknown[]).map(String);
+    }
     await kv.set(KEY, projets);
     return NextResponse.json({ ok: true });
   }
