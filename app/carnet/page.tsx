@@ -787,7 +787,9 @@ function IceleaBoard() {
       if (!target) throw new Error("col");
       const ca = await api("createAddon", { collectionId: target.id, nom: p.nom });
       if (!ca?.addon?.id) throw new Error("addon");
-      await api("updateAddon", { id: ca.addon.id, patch: { photos: [p.photo || p.image].filter(Boolean), mtrl: p.mtrl, date_sortie: p.date_sortie } });
+      // On emmène TOUTES les photos du proto : image de départ + corrections + photo reçue (sans doublon).
+      const photos = Array.from(new Set([p.image, ...(p.corrections || []), p.photo].filter(Boolean)));
+      await api("updateAddon", { id: ca.addon.id, patch: { photos, mtrl: p.mtrl, date_sortie: p.date_sortie } });
       alert("✅ « " + p.nom + " » a été dupliqué dans le Carnet → collection « Sorties Icelea ».");
     } catch {
       alert("Pour dupliquer dans le Carnet, il faut être connectée avec ton compte Mood (Amila) — le Carnet lui-même est protégé. Ouvre-le connectée, puis réessaie.");
