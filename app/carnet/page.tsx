@@ -61,13 +61,21 @@ export default function CarnetPage() {
 
   // classement des collections : recherche (nom + mots-clés/détails des addons) + par mois ou A→Z
   const nq = norm(q);
+  const qWords = nq.split(/\s+/).filter(Boolean);
   const filteredCols = cols.filter((c) => {
-    if (!nq) return true;
+    if (!qWords.length) return true;
     const hay = norm([
       c.name, c.month,
       ...c.addons.flatMap((a) => [a.nom, a.matiere, a.couleur, a.finition, ...fmtArr(a.format), ...(a.tags || []), ...(a.fournisseur || [])]),
     ].filter(Boolean).join(" "));
-    return hay.includes(nq);
+    if (hay.includes(nq)) return true; // correspondance directe (phrase entière)
+    const hayWords = hay.split(/\s+/).filter(Boolean);
+    // recherche large : chaque mot tapé doit correspondre, dans n'importe quel ordre,
+    // avec tolérance sur le début de mot (ex. "astrale" trouve "astral" et inversement)
+    return qWords.every((w) =>
+      hay.includes(w) ||
+      hayWords.some((hw) => w.length >= 3 && hw.length >= 3 && (hw.startsWith(w) || w.startsWith(hw)))
+    );
   });
   const colGroups: [string, Collection[]][] = (() => {
     const m = new Map<string, Collection[]>();
@@ -907,6 +915,8 @@ function IceleaBoard() {
               <input defaultValue={open.mtrl} placeholder="ex. MTRL-MD-RI-274-…" onBlur={(e) => patch(open.id, { mtrl: e.target.value })} />
             </div>
 
+            {open.statut === "sorti" && open.mtrl && <IceStock mtrl={open.mtrl} />}
+
             <div className="ice-detail-foot">
               <button className="btn ghost sm" style={{ color: "#b00", borderColor: "#e0b4b4" }} onClick={() => { if (window.confirm(`Supprimer le projet « ${open.nom} » ?`)) removeProjet(open.id); }}>🗑 Supprimer</button>
               {busy && <span className="ice-busy">Envoi de l’image…</span>}
@@ -914,6 +924,43 @@ function IceleaBoard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Stock atelier taille par taille (anneaux aluminium bruts en réserve), pour un addon sorti.
+function IceStock({ mtrl }: { mtrl: string }) {
+  const [loading, setLoading] = useState(true);
+  const [found, setFound] = useState(false);
+  const [lignes, setLignes] = useState<{ taille: string; qty: number }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch("/api/carnet/icelea-stock?code=" + encodeURIComponent(ICELEA_CODE) + "&mtrl=" + encodeURIComponent(mtrl))
+      .then((r) => r.json())
+      .then((d) => { if (!alive) return; setFound(!!d.found); setLignes(d.lignes || []); setLoading(false); })
+      .catch(() => { if (!alive) return; setFound(false); setLignes([]); setLoading(false); });
+    return () => { alive = false; };
+  }, [mtrl]);
+  const total = lignes.reduce((s, l) => s + l.qty, 0);
+  return (
+    <div className="ice-stock">
+      <label>Stock atelier — anneaux aluminium par taille</label>
+      {loading ? <div className="ice-stock-msg">Lecture du stock…</div>
+        : !found ? <div className="ice-stock-msg">Aucun aluminium trouvé pour ce code dans l’atelier.</div>
+        : (
+          <>
+            <div className="ice-stock-grid">
+              {lignes.map((l) => (
+                <div key={l.taille} className={"ice-stock-cell " + (l.qty <= 0 ? "s0" : l.qty <= 3 ? "slow" : "sok")}>
+                  <span className="ice-stock-t">{l.taille}</span>
+                  <span className="ice-stock-q">{l.qty}</span>
+                </div>
+              ))}
+            </div>
+            <div className="ice-stock-tot">Total en réserve : <b>{total}</b> anneaux</div>
+          </>
+        )}
     </div>
   );
 }
