@@ -836,6 +836,7 @@ function IceleaBoard() {
                 {p.date_premier_mail
                   ? <span className={"ice-created " + iceAgeCls(p.date_premier_mail)}>📅 1er mail le {fdate(p.date_premier_mail)}</span>
                   : <span className="ice-created ice-created-empty">📅 date du 1er mail à définir</span>}
+                {p.mtrl && <span className="ice-mtrl">🏷️ {p.mtrl}</span>}
               </div>
               <select className="ice-statut" value={p.statut} onClick={(e) => e.stopPropagation()} onChange={(e) => patch(p.id, { statut: e.target.value })}>
                 {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}

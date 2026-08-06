@@ -250,6 +250,7 @@
 .ice-created.age-orange { background: #ffdca0; color: #6b4a10; }
 .ice-created.age-rose { background: #ffc4dc; color: #7a1740; }
 .ice-created-empty { color: #c39db0; font-style: italic; background: transparent; }
+.ice-mtrl { font-size: 12px; font-weight: 600; color: #1e5a8a; background: #d9ecfb; padding: 1px 7px; border-radius: 4px; letter-spacing: .2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ice-statut { border: 1px solid #eadfce; border-radius: 8px; padding: 6px 8px; font-size: 13px; background: #fff; flex: none; max-width: 190px; }
 
 /* Couleurs surligneur (comme un stabilo) sur le nom + la légende */
