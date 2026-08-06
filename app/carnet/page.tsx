@@ -745,7 +745,6 @@ function IceleaBoard() {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [newNom, setNewNom] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -763,10 +762,10 @@ function IceleaBoard() {
     setProjets((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x)));
     await iceApi("update", { id, patch: p });
   }
-  async function createProjet() {
-    const nom = newNom.trim() || "Nouveau projet";
-    const d = await iceApi("create", { nom });
-    if (d.projet) { setProjets((prev) => [d.projet as IceProjet, ...prev]); setAdding(false); setNewNom(""); setOpenId(d.projet.id); }
+  async function createProjet(nom: string) {
+    const n = nom.trim() || "Nouveau projet";
+    const d = await iceApi("create", { nom: n });
+    if (d.projet) { setProjets((prev) => [d.projet as IceProjet, ...prev]); setAdding(false); setOpenId(d.projet.id); }
   }
   async function removeProjet(id: string) {
     setProjets((prev) => prev.filter((x) => x.id !== id));
@@ -815,7 +814,7 @@ function IceleaBoard() {
     <div className="ice">
       <div className="ice-head">
         <h2>📦 Projets demandés à Icelea</h2>
-        <button className="btn sm" onClick={() => { setAdding(true); setNewNom(""); }}>+ Nouveau projet</button>
+        <button className="btn sm" onClick={() => setAdding(true)}>+ Nouveau projet</button>
       </div>
       <div className="ice-legend">
         {ICE_STATUTS.map((s) => <span key={s.v} className={"ice-lg " + s.cls}>{s.label}</span>)}
@@ -842,18 +841,7 @@ function IceleaBoard() {
         </div>
       )}
 
-      {adding && (
-        <div className="modal-bg" onClick={() => setAdding(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Nouveau projet Icelea</h3>
-            <input autoFocus placeholder="Nom du projet (ex. Pavone deux tiers)" value={newNom} onChange={(e) => setNewNom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createProjet(); }} />
-            <div className="row">
-              <button className="btn ghost sm" onClick={() => setAdding(false)}>Annuler</button>
-              <button className="btn sm" onClick={createProjet}>Créer</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {adding && <IceAddModal onClose={() => setAdding(false)} onCreate={createProjet} />}
 
       {open && (
         <div className="modal-bg" onClick={() => setOpenId(null)}>
@@ -963,6 +951,23 @@ function IceCorrZone({ items, onChange }: { items: string[]; onChange: (v: strin
         ))}
         <div className={"ice-corr-add" + (busy ? " busy" : "")} onClick={() => inp.current?.click()}>{busy ? "Envoi…" : "＋ ajouter une correction"}</div>
         <input ref={inp} type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} />
+      </div>
+    </div>
+  );
+}
+
+// Fenêtre « nouveau projet » isolée : son propre champ texte → taper le nom ne redessine plus la liste (fluide).
+function IceAddModal({ onClose, onCreate }: { onClose: () => void; onCreate: (nom: string) => void }) {
+  const [nom, setNom] = useState("");
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Nouveau projet Icelea</h3>
+        <input autoFocus placeholder="Nom du projet (ex. Pavone deux tiers)" value={nom} onChange={(e) => setNom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onCreate(nom); }} />
+        <div className="row">
+          <button className="btn ghost sm" onClick={onClose}>Annuler</button>
+          <button className="btn sm" onClick={() => onCreate(nom)}>Créer</button>
+        </div>
       </div>
     </div>
   );
