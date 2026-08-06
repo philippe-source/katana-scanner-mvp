@@ -833,9 +833,9 @@ function IceleaBoard() {
                 : <div className="ice-thumb ph">📦</div>}
               <div className="ice-rowmain">
                 <span className={"ice-name " + iceCls(p.statut)}>{p.nom}</span>
-                {p.date_creation
-                  ? <span className={"ice-created " + iceAgeCls(p.date_creation)}>💡 Créé le {fdate(p.date_creation)}</span>
-                  : <span className="ice-created ice-created-empty">💡 date de création à définir</span>}
+                {p.date_premier_mail
+                  ? <span className={"ice-created " + iceAgeCls(p.date_premier_mail)}>📅 1er mail le {fdate(p.date_premier_mail)}</span>
+                  : <span className="ice-created ice-created-empty">📅 date du 1er mail à définir</span>}
               </div>
               <select className="ice-statut" value={p.statut} onClick={(e) => e.stopPropagation()} onChange={(e) => patch(p.id, { statut: e.target.value })}>
                 {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
@@ -856,11 +856,6 @@ function IceleaBoard() {
             </div>
 
             <IceImgZone label="Photos du proto (Proto 1, 2, 3…)" itemLabel="Proto" items={open.protos || []} onChange={(v) => patch(open.id, { protos: v })} />
-
-            <div className="ice-field">
-              <label>Date de création (idée / 1er mail à Icelea)</label>
-              <input type="date" defaultValue={open.date_creation} onBlur={(e) => patch(open.id, { date_creation: e.target.value })} />
-            </div>
 
             <div className="ice-field">
               <label>État</label>
