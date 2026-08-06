@@ -270,3 +270,4 @@
 .ice-photo.ph { display: flex; align-items: center; justify-content: center; background: #faf3ea; color: #d8b48f; font-size: 28px; }
 .ice-detail-foot { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
 .ice-busy { font-size: 13px; color: var(--muted); }
+.ice-dup-hint { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }

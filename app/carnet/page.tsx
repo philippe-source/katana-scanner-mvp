@@ -763,6 +763,27 @@ function IceleaBoard() {
     setOpenId(null);
     await iceApi("delete", { id });
   }
+  // Quand le produit est sorti → créer une vraie fiche dans le Carnet (collection « Sorties Icelea »).
+  async function duplicateToCarnet(p: IceProjet) {
+    try {
+      const r = await fetch("/api/carnet");
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error("auth");
+      const cols: { id: string; name: string }[] = d.collections || [];
+      let target = cols.find((c) => norm(c.name) === norm("Sorties Icelea"));
+      if (!target) {
+        const cc = await api("createCollection", { name: "Sorties Icelea", month: "" });
+        target = cc.collection;
+      }
+      if (!target) throw new Error("col");
+      const ca = await api("createAddon", { collectionId: target.id, nom: p.nom });
+      if (!ca?.addon?.id) throw new Error("addon");
+      await api("updateAddon", { id: ca.addon.id, patch: { photos: [p.photo || p.image].filter(Boolean), mtrl: p.mtrl, date_sortie: p.date_sortie } });
+      alert("✅ « " + p.nom + " » a été dupliqué dans le Carnet → collection « Sorties Icelea ».");
+    } catch {
+      alert("Pour dupliquer dans le Carnet, il faut être connectée avec ton compte Mood (Amila) — le Carnet lui-même est protégé. Ouvre-le connectée, puis réessaie.");
+    }
+  }
 
   if (!unlocked) {
     return (
@@ -845,6 +866,13 @@ function IceleaBoard() {
                 {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
               </select>
             </div>
+
+            {open.statut === "sorti" && (
+              <div className="ice-field">
+                <button className="btn sm ice-dup" onClick={() => duplicateToCarnet(open)}>📓 Dupliquer dans le Carnet</button>
+                <span className="ice-dup-hint">Crée la fiche dans « Le Carnet » → collection « Sorties Icelea ».</span>
+              </div>
+            )}
 
             <div className="ice-field">
               <label>Date de sortie</label>
