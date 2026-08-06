@@ -15,6 +15,7 @@ type Projet = {
   nom: string;
   image: string;      // image du proto / dessin
   statut: string;     // "" (pas reçu) | recu | correction | annule | sorti
+  date_premier_mail: string;
   date_sortie: string;
   mails: string;      // échanges de mails (collés/transférés)
   photo: string;      // photo du produit reçu dans son sachet
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       nom: String(b.nom || "Nouveau projet"),
       image: String(b.image || ""),
       statut: "",
+      date_premier_mail: "",
       date_sortie: "",
       mails: "",
       photo: "",
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
     const p = projets.find((x) => x.id === b.id);
     if (!p) return NextResponse.json({ error: "introuvable" }, { status: 404 });
     const patch = (b.patch as Record<string, unknown>) || {};
-    for (const k of ["nom", "image", "statut", "date_sortie", "mails", "photo", "mtrl"] as const) {
+    for (const k of ["nom", "image", "statut", "date_premier_mail", "date_sortie", "mails", "photo", "mtrl"] as const) {
       if (patch[k] !== undefined) (p as Record<string, unknown>)[k] = String(patch[k]);
     }
     await kv.set(KEY, projets);

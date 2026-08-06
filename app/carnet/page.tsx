@@ -707,7 +707,7 @@ function FileZone({ title, items, onChange }: { title: string; items: FileRef[];
 
 // ─────────────── Onglet « Projet Icelea — Amila » ───────────────
 const ICELEA_CODE = "M00d2025";
-type IceProjet = { id: string; nom: string; image: string; statut: string; date_sortie: string; mails: string; photo: string; mtrl: string };
+type IceProjet = { id: string; nom: string; image: string; statut: string; date_premier_mail: string; date_sortie: string; mails: string; photo: string; mtrl: string };
 const ICE_STATUTS: { v: string; label: string; cls: string }[] = [
   { v: "", label: "⚪️ Pas reçu", cls: "st-rien" },
   { v: "recu", label: "🟢 Proto reçu · OK", cls: "st-recu" },
@@ -849,6 +849,11 @@ function IceleaBoard() {
             <div className="ice-field">
               <label>Date de sortie</label>
               <input type="date" defaultValue={open.date_sortie} onBlur={(e) => patch(open.id, { date_sortie: e.target.value })} />
+            </div>
+
+            <div className="ice-field">
+              <label>Date du premier mail</label>
+              <input type="date" defaultValue={open.date_premier_mail} onBlur={(e) => patch(open.id, { date_premier_mail: e.target.value })} />
             </div>
 
             <div className="ice-field">
