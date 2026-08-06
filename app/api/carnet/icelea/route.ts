@@ -18,6 +18,7 @@ type Projet = {
   date_premier_mail: string;
   date_sortie: string;
   mails: string;      // échanges de mails (collés/transférés)
+  corrections: string[]; // une image par tour de correction (Correction 1, 2, …)
   photo: string;      // photo du produit reçu dans son sachet
   mtrl: string;       // code MTRL
   _at?: string;
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
       date_premier_mail: "",
       date_sortie: "",
       mails: "",
+      corrections: [],
       photo: "",
       mtrl: "",
       _at: new Date().toISOString(),
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     for (const k of ["nom", "image", "statut", "date_premier_mail", "date_sortie", "mails", "photo", "mtrl"] as const) {
       if (patch[k] !== undefined) (p as Record<string, unknown>)[k] = String(patch[k]);
     }
+    if (Array.isArray(patch.corrections)) (p as Record<string, unknown>).corrections = (patch.corrections as unknown[]).map(String);
     await kv.set(KEY, projets);
     return NextResponse.json({ ok: true });
   }
