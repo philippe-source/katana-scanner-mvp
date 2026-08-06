@@ -37,6 +37,7 @@ export default function CarnetPage() {
   const [modal, setModal] = useState<null | "col" | "addon">(null);
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<"mois" | "alpha">("mois");
+  const [tab, setTab] = useState<"carnet" | "icelea">("carnet");
 
   // navigation directe (animation de tournage retirée)
   function turnPage(fn: () => void) { fn(); }
@@ -149,9 +150,14 @@ export default function CarnetPage() {
       <div className="top">
         <h1 className="brand">Le Carnet des <em>nouveautés</em></h1>
       </div>
+      <div className="cnav">
+        <button className={"cnav-tab" + (tab === "carnet" ? " on" : "")} onClick={() => setTab("carnet")}>Le Carnet</button>
+        <button className={"cnav-tab" + (tab === "icelea" ? " on" : "")} onClick={() => setTab("icelea")}>📦 Projet Icelea — Amila</button>
+      </div>
       <p className="tagline">Chaque création, sa fiche. Le dictionnaire de fabrication Mood.</p>
 
       <div className="leaf">
+      {tab === "icelea" ? <IceleaBoard /> : (<>
       {loading && <div className="empty">Chargement…</div>}
 
       {/* VUE COLLECTIONS */}
@@ -286,7 +292,7 @@ export default function CarnetPage() {
           <Fiche key={addon.id} addon={addon} onSave={saveAddon} onDelete={deleteAddon} canEdit={canEdit} />
         </>
       )}
-
+      </>)}
       </div>
       </div>
 
@@ -695,6 +701,186 @@ function FileZone({ title, items, onChange }: { title: string; items: FileRef[];
         </div>
         <input ref={inp} type="file" hidden onChange={(e) => add(e.target.files)} />
       </div>
+    </div>
+  );
+}
+
+// ─────────────── Onglet « Projet Icelea — Amila » ───────────────
+const ICELEA_CODE = "M00d2025";
+type IceProjet = { id: string; nom: string; image: string; statut: string; date_sortie: string; mails: string; photo: string; mtrl: string };
+const ICE_STATUTS: { v: string; label: string; cls: string }[] = [
+  { v: "", label: "⚪️ Pas reçu", cls: "st-rien" },
+  { v: "recu", label: "🟢 Proto reçu · OK", cls: "st-recu" },
+  { v: "correction", label: "🟠 Correction en cours", cls: "st-corr" },
+  { v: "annule", label: "🩷 Annulé", cls: "st-annule" },
+  { v: "sorti", label: "🩵 Sorti", cls: "st-sorti" },
+];
+const iceCls = (v: string) => (ICE_STATUTS.find((s) => s.v === v) || ICE_STATUTS[0]).cls;
+
+async function iceApi(action: string, extra: Record<string, unknown> = {}) {
+  const r = await fetch("/api/carnet/icelea", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: ICELEA_CODE, action, ...extra }) });
+  return r.json();
+}
+async function iceUpload(file: File): Promise<string | null> {
+  const fd = new FormData(); fd.append("file", file);
+  const r = await fetch("/api/carnet/icelea-upload?code=" + encodeURIComponent(ICELEA_CODE), { method: "POST", body: fd });
+  const d = await r.json();
+  return d.url || null;
+}
+
+function IceleaBoard() {
+  const [unlocked, setUnlocked] = useState<boolean>(() => typeof window !== "undefined" && window.localStorage.getItem("icelea_ok") === ICELEA_CODE);
+  const [code, setCode] = useState("");
+  const [projets, setProjets] = useState<IceProjet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newNom, setNewNom] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    fetch("/api/carnet/icelea?code=" + encodeURIComponent(ICELEA_CODE))
+      .then((r) => r.json()).then((d) => { setProjets(d.projets || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  useEffect(() => { if (unlocked) load(); }, [unlocked, load]);
+
+  function tryCode() {
+    if (code.trim() === ICELEA_CODE) { window.localStorage.setItem("icelea_ok", ICELEA_CODE); setUnlocked(true); }
+    else alert("Code incorrect.");
+  }
+  async function patch(id: string, p: Partial<IceProjet>) {
+    setProjets((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x)));
+    await iceApi("update", { id, patch: p });
+  }
+  async function createProjet() {
+    const nom = newNom.trim() || "Nouveau projet";
+    const d = await iceApi("create", { nom });
+    if (d.projet) { setProjets((prev) => [d.projet as IceProjet, ...prev]); setAdding(false); setNewNom(""); setOpenId(d.projet.id); }
+  }
+  async function removeProjet(id: string) {
+    setProjets((prev) => prev.filter((x) => x.id !== id));
+    setOpenId(null);
+    await iceApi("delete", { id });
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="ice-lock">
+        <div className="ice-lock-card">
+          <div className="ice-lock-emoji">🔒</div>
+          <h2>Projet Icelea</h2>
+          <p>Espace réservé. Entre le code d’accès.</p>
+          <input type="password" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Code" onKeyDown={(e) => { if (e.key === "Enter") tryCode(); }} autoFocus />
+          <button className="btn" onClick={tryCode}>Entrer</button>
+        </div>
+      </div>
+    );
+  }
+
+  const open = projets.find((p) => p.id === openId) || null;
+
+  return (
+    <div className="ice">
+      <div className="ice-head">
+        <h2>📦 Projets demandés à Icelea</h2>
+        <button className="btn sm" onClick={() => { setAdding(true); setNewNom(""); }}>+ Nouveau projet</button>
+      </div>
+      <div className="ice-legend">
+        {ICE_STATUTS.map((s) => <span key={s.v} className={"ice-lg " + s.cls}>{s.label}</span>)}
+      </div>
+
+      {loading ? <div className="empty">Chargement…</div> : (
+        <div className="ice-list">
+          {projets.length === 0 && <div className="empty">Aucun projet pour l’instant. Clique « + Nouveau projet ».</div>}
+          {projets.map((p) => (
+            <div className="ice-row" key={p.id} onClick={() => setOpenId(p.id)}>
+              {p.image
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img className="ice-thumb" src={p.image} alt="" />
+                : <div className="ice-thumb ph">📦</div>}
+              <span className={"ice-name " + iceCls(p.statut)}>{p.nom}</span>
+              <select className="ice-statut" value={p.statut} onClick={(e) => e.stopPropagation()} onChange={(e) => patch(p.id, { statut: e.target.value })}>
+                {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding && (
+        <div className="modal-bg" onClick={() => setAdding(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Nouveau projet Icelea</h3>
+            <input autoFocus placeholder="Nom du projet (ex. Pavone deux tiers)" value={newNom} onChange={(e) => setNewNom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createProjet(); }} />
+            <div className="row">
+              <button className="btn ghost sm" onClick={() => setAdding(false)}>Annuler</button>
+              <button className="btn sm" onClick={createProjet}>Créer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div className="modal-bg" onClick={() => setOpenId(null)}>
+          <div className="modal ice-detail" onClick={(e) => e.stopPropagation()}>
+            <div className="ice-detail-head">
+              <input className="ice-nom-input" defaultValue={open.nom} onBlur={(e) => patch(open.id, { nom: e.target.value })} />
+              <button className="btn ghost sm" onClick={() => setOpenId(null)}>✓ Fermer</button>
+            </div>
+
+            <div className="ice-detail-img">
+              {open.image
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={open.image} alt="" />
+                : <div className="ice-detail-ph">📦</div>}
+              <label className="btn ghost sm">{open.image ? "Changer l'image" : "Ajouter l'image du proto"}
+                <input type="file" accept="image/*" hidden disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); const u = await iceUpload(f); if (u) await patch(open.id, { image: u }); setBusy(false); }} />
+              </label>
+            </div>
+
+            <div className="ice-field">
+              <label>État</label>
+              <select value={open.statut} onChange={(e) => patch(open.id, { statut: e.target.value })}>
+                {ICE_STATUTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+              </select>
+            </div>
+
+            <div className="ice-field">
+              <label>Date de sortie</label>
+              <input type="date" defaultValue={open.date_sortie} onBlur={(e) => patch(open.id, { date_sortie: e.target.value })} />
+            </div>
+
+            <div className="ice-field">
+              <label>Échanges de mails (colle ou transfère ici)</label>
+              <textarea defaultValue={open.mails} rows={6} placeholder="Colle ici les mails échangés avec Icelea…" onBlur={(e) => patch(open.id, { mails: e.target.value })} />
+            </div>
+
+            <div className="ice-field">
+              <label>Photo du produit reçu (dans son sachet)</label>
+              <div className="ice-photo-zone">
+                {open.photo
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img className="ice-photo" src={open.photo} alt="" />
+                  : <div className="ice-photo ph">📷</div>}
+                <label className="btn ghost sm">{open.photo ? "Changer la photo" : "Ajouter la photo"}
+                  <input type="file" accept="image/*" hidden disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); const u = await iceUpload(f); if (u) await patch(open.id, { photo: u }); setBusy(false); }} />
+                </label>
+              </div>
+            </div>
+
+            <div className="ice-field">
+              <label>Code MTRL</label>
+              <input defaultValue={open.mtrl} placeholder="ex. MTRL-MD-RI-274-…" onBlur={(e) => patch(open.id, { mtrl: e.target.value })} />
+            </div>
+
+            <div className="ice-detail-foot">
+              <button className="btn ghost sm" style={{ color: "#b00", borderColor: "#e0b4b4" }} onClick={() => { if (window.confirm(`Supprimer le projet « ${open.nom} » ?`)) removeProjet(open.id); }}>🗑 Supprimer</button>
+              {busy && <span className="ice-busy">Envoi de l’image…</span>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,6 +32,12 @@ export default auth((req) => {
     return;
   }
 
+  // /carnet + onglet « Projet Icelea » : accessible sans login Google (l'onglet Icelea est protégé par un code).
+  // Le contenu du Carnet lui-même (/api/carnet) reste protégé par le login ; seules la page et les données Icelea passent.
+  if (pathname === "/carnet" || pathname === "/api/carnet/icelea" || pathname === "/api/carnet/icelea-upload") {
+    return;
+  }
+
   if (!req.auth) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
