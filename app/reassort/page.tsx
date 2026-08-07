@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { coloralColorInFile } from "@/lib/coloral/colors";
+import type { KatanaReassortRow } from "@/lib/reassort-katana";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -692,6 +693,14 @@ const DEFAULT_PARAMS: Params = {
 };
 
 export default function ReassortPage() {
+  // Source par défaut : Katana. Les exports manuels restent en secours — ils ne
+  // voyaient qu'une partie du catalogue (419 références Coloral sur 1728, familles
+  // 2/3 et alu 7,1 totalement absentes) parce qu'ils dépendaient du filtre appliqué
+  // à l'export.
+  const [source, setSource] = useState<"katana" | "fichiers">("katana");
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string; materialCount: number }[]>([]);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
   const [file7, setFile7] = useState<File | null>(null);
   const [file30, setFile30] = useState<File | null>(null);
   const [file90, setFile90] = useState<File | null>(null);
@@ -738,9 +747,52 @@ export default function ReassortPage() {
     });
   }
 
+  // Liste des fournisseurs qui ont réellement des matières dans Katana.
+  useEffect(() => {
+    if (source !== "katana" || suppliers.length || suppliersLoading) return;
+    setSuppliersLoading(true);
+    fetch("/api/reassort-katana/suppliers")
+      .then((r) => r.json())
+      .then((d: { suppliers?: { id: number; name: string; materialCount: number }[]; error?: string }) => {
+        if (d.error) setError(d.error);
+        else setSuppliers(d.suppliers ?? []);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Fournisseurs indisponibles"))
+      .finally(() => setSuppliersLoading(false));
+  }, [source, suppliers.length, suppliersLoading]);
+
+  // Transforme les données lues dans Katana en trois périodes, exactement comme le
+  // faisaient les trois fichiers déposés à la main.
+  function periodMapsFromKatana(rows: KatanaReassortRow[]) {
+    const build = (days: 7 | 30 | 90) => {
+      const m = new Map<string, PeriodRow>();
+      for (const r of rows) {
+        const totalQty = days === 7 ? r.qty7 : days === 30 ? r.qty30 : r.qty90;
+        m.set(r.sku, {
+          sku: r.sku,
+          name: r.name,
+          supplier: r.supplier,
+          inStock: r.inStock,
+          expected: r.expected,
+          totalQty,
+          avgDemandReported: totalQty / days,
+          // Jours de couverture au rythme de la période, comme la colonne du fichier.
+          daysOfInventory: totalQty > 0 ? (r.inStock * days) / totalQty : 0,
+          dailyDemand: totalQty / days,
+        });
+      }
+      return m;
+    };
+    return { map7: build(7), map30: build(30), map90: build(90) };
+  }
+
   async function generate() {
-    if (!file7 || !file30 || !file90) {
+    if (source === "fichiers" && (!file7 || !file30 || !file90)) {
       setError("Merci de sélectionner les 3 fichiers CSV.");
+      return;
+    }
+    if (source === "katana" && !supplierId) {
+      setError("Merci de choisir un fournisseur.");
       return;
     }
     setLoading(true);
@@ -752,23 +804,54 @@ export default function ReassortPage() {
     const addLog = (msg: string) => lines.push(msg);
 
     try {
-      addLog("Lecture des fichiers...");
+      let map7: Map<string, PeriodRow>;
+      let map30: Map<string, PeriodRow>;
+      let map90: Map<string, PeriodRow>;
 
-      const [text7, text30, text90] = await Promise.all([
-        readFile(file7),
-        readFile(file30),
-        readFile(file90),
-      ]);
+      if (source === "katana") {
+        const supplier = suppliers.find((s) => s.id === supplierId);
+        addLog(`Lecture directe dans Katana — ${supplier?.name ?? supplierId}…`);
+        setLog([...lines]);
+        const res = await fetch("/api/reassort-katana/load", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ supplierId, supplierName: supplier?.name }),
+        });
+        const data = (await res.json()) as {
+          rows?: KatanaReassortRow[];
+          movementsRead?: number;
+          rebuiltFromLedger?: number;
+          lookedUp?: number;
+          dormantSkipped?: number;
+          error?: string;
+        };
+        if (!res.ok || data.error) throw new Error(data.error ?? `Erreur ${res.status}`);
+        const rows = data.rows ?? [];
+        addLog(`${data.movementsRead ?? 0} mouvements de stock lus sur 90 jours.`);
+        addLog(
+          `${rows.length} référence(s) — stock reconstitué pour ${data.rebuiltFromLedger ?? 0}, ` +
+            `demandé pour ${data.lookedUp ?? 0}, ${data.dormantSkipped ?? 0} endormie(s) écartée(s).`
+        );
+        addLog("Chiffres = sorties de stock (pas les ventes) : atelier, casse et corrections inclus.");
+        ({ map7, map30, map90 } = periodMapsFromKatana(rows));
+      } else {
+        addLog("Lecture des fichiers...");
+        const [text7, text30, text90] = await Promise.all([
+          readFile(file7!),
+          readFile(file30!),
+          readFile(file90!),
+        ]);
 
-      const parse = (text: string, name: string, label: string) => {
-        const raw = parseCSV(text);
-        const normalized = normalizeColumns(raw, name);
-        return loadPeriodRows(normalized, label);
-      };
+        const parse = (text: string, name: string, label: string) => {
+          const raw = parseCSV(text);
+          const normalized = normalizeColumns(raw, name);
+          return loadPeriodRows(normalized, label);
+        };
 
-      const map7 = parse(text7, file7.name, "7");
-      const map30 = parse(text30, file30.name, "30");
-      const map90 = parse(text90, file90.name, "90");
+        map7 = parse(text7, file7!.name, "7");
+        map30 = parse(text30, file30!.name, "30");
+        map90 = parse(text90, file90!.name, "90");
+      }
 
       addLog(`SKU trouvés — 7j: ${map7.size} | 30j: ${map30.size} | 90j: ${map90.size}`);
 
@@ -933,12 +1016,62 @@ export default function ReassortPage() {
           </div>
         </div>
 
-        {/* Fichiers */}
+        {/* Source des données */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
-          <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-500">Fichiers source</h2>
-          <FileInput label="Fichier 7 jours" file={file7} onFile={setFile7} />
-          <FileInput label="Fichier 30 jours" file={file30} onFile={setFile30} />
-          <FileInput label="Fichier 90 jours" file={file90} onFile={setFile90} />
+          <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-500">D&apos;où viennent les chiffres</h2>
+          <div className="flex gap-3">
+            {([
+              ["katana", "Directement dans Katana"],
+              ["fichiers", "Trois fichiers déposés"],
+            ] as const).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => { setSource(v); setError(null); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  source === v
+                    ? "bg-blue-600 border-blue-500 text-white"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {source === "katana" ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="w-32 text-xs font-semibold text-zinc-400 shrink-0">Fournisseur</span>
+                <select
+                  value={supplierId ?? ""}
+                  onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={suppliersLoading || !suppliers.length}
+                  className="text-sm bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 min-w-0 flex-1"
+                >
+                  <option value="">
+                    {suppliersLoading ? "Lecture des fournisseurs…" : "— choisir un fournisseur —"}
+                  </option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.materialCount} références)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Les chiffres sont les <strong>sorties de stock</strong> des 90 derniers jours, pas les ventes :
+                l&apos;atelier, la casse et les corrections de comptage sont donc comptés. Le stock et les commandes
+                déjà passées sont lus au même moment. Comptez environ 1 à 2 minutes pour le premier fournisseur,
+                puis c&apos;est presque immédiat.
+              </p>
+            </div>
+          ) : (
+            <>
+              <FileInput label="Fichier 7 jours" file={file7} onFile={setFile7} />
+              <FileInput label="Fichier 30 jours" file={file30} onFile={setFile30} />
+              <FileInput label="Fichier 90 jours" file={file90} onFile={setFile90} />
+            </>
+          )}
         </div>
 
         {/* Paramètres */}
@@ -1006,7 +1139,10 @@ export default function ReassortPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={generate}
-            disabled={loading || !file7 || !file30 || !file90}
+            disabled={
+              loading ||
+              (source === "katana" ? !supplierId : !file7 || !file30 || !file90)
+            }
             className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
           >
             {loading ? "Calcul en cours..." : "Générer les recommandations"}
