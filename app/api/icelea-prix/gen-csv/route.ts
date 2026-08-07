@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+// Cette étape lit tout le catalogue de la boutique (~10 800 produits, ~44 pages)
+// puis résout les SKU côté Katana : impossible de tenir en 60s, d'où le timeout
+// observé le 07.08.2026. Plafond relevé + attentes entre pages resserrées.
+export const maxDuration = 300;
 
 const KATANA_KEY = process.env.KATANA_API_KEY!;
 const SHOPIFY_TOKEN = process.env.SHOPIFY_API_TOKEN!;
@@ -58,7 +61,9 @@ export async function POST(req: NextRequest) {
     let url: string | null = `${SHOPIFY_API}/products.json?limit=250&fields=id,title,variants`;
     while (url) {
       const res = await fetch(url, { headers: { "X-Shopify-Access-Token": SHOPIFY_TOKEN }, cache: "no-store" });
-      if (!res.ok) break;
+      // Ne pas sortir en silence : un arrêt discret ici produisait un CSV
+      // incomplet présenté comme complet.
+      if (!res.ok) throw new Error(`Shopify ${res.status} — catalogue chargé à ${shopifyVariants.size} variantes`);
       const json = await res.json() as { products: { id: number; title: string; variants: { id: number; sku: string; title: string; price: string }[] }[] };
       for (const p of json.products ?? []) {
         for (const v of p.variants ?? []) {
@@ -66,7 +71,7 @@ export async function POST(req: NextRequest) {
         }
       }
       url = parseNextLink(res.headers.get("link"));
-      if (url) await SLEEP(350);
+      if (url) await SLEEP(200);
     }
 
     // Construire le CSV
