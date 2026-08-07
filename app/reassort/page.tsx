@@ -698,7 +698,7 @@ export default function ReassortPage() {
   // 2/3 et alu 7,1 totalement absentes) parce qu'ils dépendaient du filtre appliqué
   // à l'export.
   const [source, setSource] = useState<"katana" | "fichiers">("katana");
-  const [suppliers, setSuppliers] = useState<{ id: number; name: string; materialCount: number }[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [suppliersLoading, setSuppliersLoading] = useState(false);
   const [file7, setFile7] = useState<File | null>(null);
@@ -753,7 +753,7 @@ export default function ReassortPage() {
     setSuppliersLoading(true);
     fetch("/api/reassort-katana/suppliers")
       .then((r) => r.json())
-      .then((d: { suppliers?: { id: number; name: string; materialCount: number }[]; error?: string }) => {
+      .then((d: { suppliers?: { id: number; name: string }[]; error?: string }) => {
         if (d.error) setError(d.error);
         else setSuppliers(d.suppliers ?? []);
       })
@@ -827,6 +827,12 @@ export default function ReassortPage() {
         };
         if (!res.ok || data.error) throw new Error(data.error ?? `Erreur ${res.status}`);
         const rows = data.rows ?? [];
+        if (!rows.length) {
+          throw new Error(
+            `Aucune matière rattachée à ${supplier?.name ?? "ce fournisseur"} dans Katana, ` +
+              `ou aucune sortie de stock depuis 90 jours. Rien à réassortir.`
+          );
+        }
         addLog(`${data.movementsRead ?? 0} mouvements de stock lus sur 90 jours.`);
         addLog(
           `${rows.length} référence(s) — stock reconstitué pour ${data.rebuiltFromLedger ?? 0}, ` +
@@ -1053,7 +1059,7 @@ export default function ReassortPage() {
                   </option>
                   {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.materialCount} références)
+                      {s.name}
                     </option>
                   ))}
                 </select>

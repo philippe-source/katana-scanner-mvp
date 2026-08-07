@@ -213,20 +213,15 @@ async function loadIncoming(supplierId: number): Promise<Map<number, number>> {
 
 // ─── Liste des fournisseurs qui ont réellement des matières ────────────────────
 
-export async function listReassortSuppliers(): Promise<{ id: number; name: string; materialCount: number }[]> {
-  const [suppliers, variants] = await Promise.all([
-    getAllPages<{ id: number; name?: string }>("/v1/suppliers"),
-    loadMaterialVariants(),
-  ]);
-  const counts = new Map<number, number>();
-  for (const v of variants) {
-    if (v.supplierId == null) continue;
-    counts.set(v.supplierId, (counts.get(v.supplierId) ?? 0) + 1);
-  }
+// Volontairement SANS compter les références de chaque fournisseur : ce comptage
+// obligeait à lire tout le catalogue matières (~60s) avant que la liste s'affiche,
+// et la liste restait grisée pendant tout ce temps. Un fournisseur sans matière est
+// signalé au chargement, ce qui suffit.
+export async function listReassortSuppliers(): Promise<{ id: number; name: string }[]> {
+  const suppliers = await getAllPages<{ id: number; name?: string }>("/v1/suppliers");
   return suppliers
-    .map((s) => ({ id: s.id, name: s.name ?? `#${s.id}`, materialCount: counts.get(s.id) ?? 0 }))
-    .filter((s) => s.materialCount > 0)
-    .sort((a, b) => b.materialCount - a.materialCount);
+    .map((s) => ({ id: s.id, name: s.name ?? `#${s.id}` }))
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 
 // ─── Point d'entrée : les données de réassort d'un fournisseur ─────────────────
