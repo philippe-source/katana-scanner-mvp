@@ -763,11 +763,12 @@ export default function ReassortPage() {
 
   // Transforme les données lues dans Katana en trois périodes, exactement comme le
   // faisaient les trois fichiers déposés à la main.
-  function periodMapsFromKatana(rows: KatanaReassortRow[]) {
-    const build = (days: 7 | 30 | 90) => {
+  function periodMapsFromKatana(rows: KatanaReassortRow[], windows: [number, number, number]) {
+    const build = (rank: 0 | 1 | 2) => {
+      const days = windows[rank];
       const m = new Map<string, PeriodRow>();
       for (const r of rows) {
-        const totalQty = days === 7 ? r.qty7 : days === 30 ? r.qty30 : r.qty90;
+        const totalQty = rank === 0 ? r.qtyShort : rank === 1 ? r.qtyMedium : r.qtyLong;
         m.set(r.sku, {
           sku: r.sku,
           name: r.name,
@@ -783,7 +784,7 @@ export default function ReassortPage() {
       }
       return m;
     };
-    return { map7: build(7), map30: build(30), map90: build(90) };
+    return { map7: build(0), map30: build(1), map90: build(2) };
   }
 
   async function generate() {
@@ -823,23 +824,26 @@ export default function ReassortPage() {
           rebuiltFromLedger?: number;
           lookedUp?: number;
           dormantSkipped?: number;
+          windows?: [number, number, number];
           error?: string;
         };
         if (!res.ok || data.error) throw new Error(data.error ?? `Erreur ${res.status}`);
         const rows = data.rows ?? [];
+        const windows = data.windows ?? [7, 30, 90];
         if (!rows.length) {
           throw new Error(
             `Aucune matière rattachée à ${supplier?.name ?? "ce fournisseur"} dans Katana, ` +
-              `ou aucune sortie de stock depuis 90 jours. Rien à réassortir.`
+              `ou aucune sortie de stock depuis ${windows[2]} jours. Rien à réassortir.`
           );
         }
-        addLog(`${data.movementsRead ?? 0} mouvements de stock lus sur 90 jours.`);
+        addLog(`${data.movementsRead ?? 0} mouvements de stock lus.`);
+        addLog(`Fenêtres d'observation : ${windows[0]} / ${windows[1]} / ${windows[2]} jours.`);
         addLog(
           `${rows.length} référence(s) — stock reconstitué pour ${data.rebuiltFromLedger ?? 0}, ` +
             `demandé pour ${data.lookedUp ?? 0}, ${data.dormantSkipped ?? 0} endormie(s) écartée(s).`
         );
         addLog("Chiffres = sorties de stock (pas les ventes) : atelier, casse et corrections inclus.");
-        ({ map7, map30, map90 } = periodMapsFromKatana(rows));
+        ({ map7, map30, map90 } = periodMapsFromKatana(rows, windows));
       } else {
         addLog("Lecture des fichiers...");
         const [text7, text30, text90] = await Promise.all([

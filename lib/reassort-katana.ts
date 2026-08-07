@@ -29,9 +29,11 @@ export interface KatanaReassortRow {
   supplier: string;
   inStock: number;
   expected: number;
-  qty7: number;
-  qty30: number;
-  qty90: number;
+  // Sorties de stock sur les trois fenêtres d'observation du fournisseur
+  // (7/30/90 par défaut, 7/15/30 pour Coloral).
+  qtyShort: number;
+  qtyMedium: number;
+  qtyLong: number;
 }
 
 async function get(path: string): Promise<Record<string, unknown>> {
@@ -108,11 +110,19 @@ async function loadMaterialVariants(): Promise<MaterialVariant[]> {
 // ─── Mouvements de stock des 90 derniers jours ─────────────────────────────────
 
 interface MovementSummary {
-  qty7: number;
-  qty30: number;
-  qty90: number;
+  // Sorties par jour d'ancienneté (0 = aujourd'hui … 90). Garder le détail au jour
+  // permet de calculer n'importe quelle fenêtre sans relire Katana : Coloral se
+  // regarde sur 30 jours, les autres fournisseurs sur 90.
+  outByDay: number[];
   // Dernier solde connu par emplacement : le stock actuel en est la somme.
   lastByLocation: Map<number, { date: string; balance: number }>;
+}
+
+function sumWindow(s: MovementSummary | undefined, days: number): number {
+  if (!s) return 0;
+  let total = 0;
+  for (let d = 0; d < days && d < s.outByDay.length; d++) total += s.outByDay[d];
+  return total;
 }
 
 let movementsCache: { at: number; value: Map<number, MovementSummary>; read: number } | null = null;
@@ -125,8 +135,6 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
   const since = new Date(now - HISTORY_DAYS * dayMs).toISOString();
-  const cut7 = new Date(now - 7 * dayMs).toISOString();
-  const cut30 = new Date(now - 30 * dayMs).toISOString();
 
   const movements = await getAllPages<{
     variant_id: number;
@@ -143,7 +151,7 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
     if (vid == null) continue;
     let s = byVariant.get(vid);
     if (!s) {
-      s = { qty7: 0, qty30: 0, qty90: 0, lastByLocation: new Map() };
+      s = { outByDay: new Array(HISTORY_DAYS + 1).fill(0), lastByLocation: new Map() };
       byVariant.set(vid, s);
     }
     const date = mv.movement_date ?? mv.created_at ?? "";
@@ -153,10 +161,10 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
     }
     const change = Number(mv.quantity_change ?? 0);
     if (change >= 0) continue; // une entrée n'est pas une sortie
-    const out = -change;
-    s.qty90 += out;
-    if (date >= cut30) s.qty30 += out;
-    if (date >= cut7) s.qty7 += out;
+    const t = Date.parse(date);
+    const daysAgo = Number.isFinite(t) ? Math.floor((now - t) / dayMs) : HISTORY_DAYS;
+    const slot = Math.min(Math.max(daysAgo, 0), HISTORY_DAYS);
+    s.outByDay[slot] += -change;
   }
 
   movementsCache = { at: Date.now(), value: byVariant, read: movements.length };
@@ -226,6 +234,20 @@ export async function listReassortSuppliers(): Promise<{ id: number; name: strin
 
 // ─── Point d'entrée : les données de réassort d'un fournisseur ─────────────────
 
+// Fenêtres d'observation, en jours : courte / moyenne / longue.
+// Coloral se juge sur 30 jours (7 / 15 / 30) et non 90 : l'aluminium anodisé suit les
+// collections, et une histoire de trois mois fait remonter des couleurs qui ne tournent
+// plus. Décidé avec Philippe le 07.08.2026.
+export const DEFAULT_WINDOWS: [number, number, number] = [7, 30, 90];
+export const SHORT_HORIZON_WINDOWS: [number, number, number] = [7, 15, 30];
+const COLORAL_SUPPLIER_NAME = "coloral";
+
+export function windowsForSupplier(supplierName: string): [number, number, number] {
+  return supplierName.trim().toLowerCase() === COLORAL_SUPPLIER_NAME
+    ? SHORT_HORIZON_WINDOWS
+    : DEFAULT_WINDOWS;
+}
+
 export async function loadReassortDataForSupplier(
   supplierId: number,
   supplierName: string
@@ -235,7 +257,9 @@ export async function loadReassortDataForSupplier(
   rebuiltFromLedger: number;
   lookedUp: number;
   dormantSkipped: number;
+  windows: [number, number, number];
 }> {
+  const windows = windowsForSupplier(supplierName);
   const all = (await loadMaterialVariants()).filter((v) => v.supplierId === supplierId);
   const { byVariant, read } = await loadMovements();
 
@@ -265,9 +289,9 @@ export async function loadReassortDataForSupplier(
       supplier: supplierName,
       inStock,
       expected: incoming.get(v.variantId) ?? fetched.get(v.variantId)?.expected ?? 0,
-      qty7: s?.qty7 ?? 0,
-      qty30: s?.qty30 ?? 0,
-      qty90: s?.qty90 ?? 0,
+      qtyShort: sumWindow(s, windows[0]),
+      qtyMedium: sumWindow(s, windows[1]),
+      qtyLong: sumWindow(s, windows[2]),
     };
   });
 
@@ -277,5 +301,6 @@ export async function loadReassortDataForSupplier(
     rebuiltFromLedger: variants.length - missing.length,
     lookedUp: missing.length,
     dormantSkipped: all.length - variants.length,
+    windows,
   };
 }
