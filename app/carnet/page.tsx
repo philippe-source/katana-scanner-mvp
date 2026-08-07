@@ -883,12 +883,10 @@ function IceleaBoard() {
               </select>
             </div>
 
-            {open.statut === "sorti" && (
-              <div className="ice-field">
-                <button className="btn sm ice-dup" onClick={() => duplicateToCarnet(open)}>📓 Dupliquer dans le Carnet</button>
-                <span className="ice-dup-hint">Crée la fiche dans « Le Carnet » → collection « Sorties Icelea ».</span>
-              </div>
-            )}
+            <div className="ice-field">
+              <button className="btn sm ice-dup" onClick={() => duplicateToCarnet(open)}>📓 Publier dans le Carnet</button>
+              <span className="ice-dup-hint">Crée la fiche dans « Le Carnet » → collection « Sorties Icelea ». (Il faut être connectée avec ton compte Mood.)</span>
+            </div>
 
             <div className="ice-field">
               <label>Date de sortie</label>
