@@ -251,6 +251,18 @@
 .ice-created.age-rose { background: #ffc4dc; color: #7a1740; }
 .ice-created-empty { color: #c39db0; font-style: italic; background: transparent; }
 .ice-mtrl { font-size: 12px; font-weight: 600; color: #1e5a8a; background: #d9ecfb; padding: 1px 7px; border-radius: 4px; letter-spacing: .2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ice-stock { margin-top: 4px; }
+.ice-stock > label { display: block; font-size: 13px; font-weight: 600; color: #6b5a3a; margin-bottom: 6px; }
+.ice-stock-msg { font-size: 13px; color: var(--muted); font-style: italic; }
+.ice-stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; }
+.ice-stock-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 8px; border: 1px solid #eadfce; }
+.ice-stock-t { font-size: 11px; color: var(--muted); }
+.ice-stock-q { font-size: 17px; font-weight: 700; }
+.ice-stock-cell.sok { background: #e6f7ea; border-color: #bfe6c8; }
+.ice-stock-cell.slow { background: #fff2d9; border-color: #f0d69a; }
+.ice-stock-cell.s0 { background: #fde0e0; border-color: #f0b4b4; }
+.ice-stock-cell.s0 .ice-stock-q { color: #b00; }
+.ice-stock-tot { margin-top: 8px; font-size: 13px; color: #6b5a3a; }
 .ice-statut { border: 1px solid #eadfce; border-radius: 8px; padding: 6px 8px; font-size: 13px; background: #fff; flex: none; max-width: 190px; }
 
 /* Couleurs surligneur (comme un stabilo) sur le nom + la légende */
@@ -284,3 +296,11 @@
 .ice-corr-item .rm { position: absolute; top: -6px; right: -6px; }
 .ice-corr-add { width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12.5px; color: var(--muted); border: 1px dashed #e0c8d4; border-radius: 9px; cursor: pointer; padding: 6px; }
 .ice-corr-add.busy { opacity: .6; }
+
+/* Rond "collection sortie" en haut à gauche de chaque carte */
+.carnet .sortie-dot{position:absolute;top:9px;left:9px;z-index:3;width:23px;height:23px;border-radius:50%;
+  border:2px solid var(--line);background:rgba(255,255,255,.92);box-shadow:0 1px 3px rgba(0,0,0,.12);
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;line-height:1}
+.carnet .sortie-dot.on{background:#2c9a3a;border-color:#2c9a3a}
+.carnet .sortie-dot.editable{cursor:pointer}
+.carnet .sortie-dot.editable:hover{border-color:#2c9a3a}

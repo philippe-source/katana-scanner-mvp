@@ -13,7 +13,7 @@ const COLS = "carnet:cols"; // [{id,name,month}]
 const colAddons = (id: string) => `carnet:col:${id}`; // [addonId,...]
 const addonKey = (id: string) => `carnet:addon:${id}`; // objet fiche
 
-type Collection = { id: string; name: string; month: string; cover?: string; shopify?: string };
+type Collection = { id: string; name: string; month: string; cover?: string; shopify?: string; sortie?: boolean };
 type Addon = Record<string, unknown> & { id: string; collectionId: string; nom: string };
 
 async function getCols(): Promise<Collection[]> {
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       if (b.month !== undefined) c.month = String(b.month);
       if (b.cover !== undefined) c.cover = String(b.cover);
       if (b.shopify !== undefined) c.shopify = String(b.shopify);
+      if (b.sortie !== undefined) c.sortie = !!b.sortie;
       await kv.set(COLS, cols);
       return NextResponse.json({ ok: true });
     }

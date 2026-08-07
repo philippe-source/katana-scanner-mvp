@@ -12,7 +12,7 @@ type Addon = {
   date_croquis?: string; date_dessin?: string; date_gravure?: string; date_sortie?: string;
 };
 const fdate = (v?: string) => v ? v.split("-").reverse().join(".") : "";
-type Collection = { id: string; name: string; month: string; cover?: string; shopify?: string; addons: Addon[] };
+type Collection = { id: string; name: string; month: string; cover?: string; shopify?: string; sortie?: boolean; addons: Addon[] };
 
 const FORMATS = ["addon", "deux tiers", "medium", "mini", "open mood", "base", "pack", "coffret"];
 // format peut être une chaîne (ancien) ou un tableau (nouveau) — on lit les deux sans rien perdre
@@ -132,6 +132,11 @@ export default function CarnetPage() {
     setColId(null); setAddonId(null);
     await api("deleteCollection", { id });
   }
+  async function toggleSortie(c: Collection) {
+    const val = !c.sortie;
+    setCols((prev) => prev.map((x) => (x.id === c.id ? { ...x, sortie: val } : x)));
+    await api("updateCollection", { id: c.id, sortie: val });
+  }
   async function setColCover(id: string, file: File) {
     const u = await uploadFile(file);
     if (!u) return;
@@ -217,6 +222,11 @@ export default function CarnetPage() {
                   const cover = c.cover || c.addons.flatMap((a) => a.photos || [])[0] || c.addons.flatMap((a) => a.croquis || [])[0];
                   return (
                     <button key={c.id} className="card" onClick={() => turnPage(() => setColId(c.id))}>
+                      <span
+                        className={"sortie-dot" + (c.sortie ? " on" : "") + (canEdit ? " editable" : "")}
+                        title={c.sortie ? "Collection sortie ✓" : (canEdit ? "Marquer comme sortie" : "Pas encore sortie")}
+                        onClick={(e) => { if (canEdit) { e.stopPropagation(); toggleSortie(c); } }}
+                      >{c.sortie ? "✓" : ""}</span>
                       {cover
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img className="kthumb" src={cover} alt="" />
