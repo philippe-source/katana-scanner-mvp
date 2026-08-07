@@ -47,6 +47,10 @@ export const COLORAL_COLOR_ALIASES: Record<string, string> = {
   lilacashmere: "lila cashmere",
   lilas: "lila cashmere",
   // "lila" (Katana) et "lila 2071C" (fichier) = lila cashmere : géré par canonFileColor.
+  // Abréviations propres aux anneaux 2/3 (confirmé Philippe le 07.08.2026). Sans elles,
+  // ces deux couleurs disparaissaient de toute commande Coloral sans aucun signal.
+  lil: "lila", // "lila" devient "lila cashmere" via canonFileColor
+  bel: "belinda",
   bp: "bleu pastel",
   bleupastel: "bleu pastel",
   vertpastel: "vert pastel",
