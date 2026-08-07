@@ -22,8 +22,9 @@ async function getCols(): Promise<Collection[]> {
 
 // GET → { collections:[{...,addons:[fiche]}] }
 export async function GET() {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "non connecté" }, { status: 401 });
+  // Consultation ouverte : tout le monde avec le lien voit le Carnet (aucune connexion requise).
+  // La connexion sert seulement à savoir si la personne a le droit de modifier (canEdit).
+  const session = await auth().catch(() => null);
   try {
     const cols = await getCols();
     const out = [];
@@ -32,7 +33,7 @@ export async function GET() {
       const addons = (ids.length ? await kv.mget<(Addon | null)[]>(...ids.map(addonKey)) : []).filter(Boolean);
       out.push({ ...c, addons });
     }
-    return NextResponse.json({ collections: out, canEdit: canEdit(session.user?.email) });
+    return NextResponse.json({ collections: out, canEdit: canEdit(session?.user?.email) });
   } catch (e) {
     return NextResponse.json({ error: String((e as Error)?.message || e) }, { status: 500 });
   }

@@ -32,9 +32,10 @@ export default auth((req) => {
     return;
   }
 
-  // /carnet + onglet « Projet Icelea » : accessible sans login Google (l'onglet Icelea est protégé par un code).
-  // Le contenu du Carnet lui-même (/api/carnet) reste protégé par le login ; seules la page et les données Icelea passent.
-  if (pathname === "/carnet" || pathname === "/api/carnet/icelea" || pathname === "/api/carnet/icelea-upload") {
+  // /carnet + son contenu : consultable sans login Google (on envoie le lien, la personne voit tout de suite).
+  // L'écriture (créer/éditer les fiches) reste protégée dans /api/carnet lui-même (login + Amila uniquement).
+  // L'onglet « Projet Icelea » a sa propre protection par code.
+  if (pathname === "/carnet" || pathname === "/api/carnet" || pathname === "/api/carnet/icelea" || pathname === "/api/carnet/icelea-upload" || pathname === "/api/carnet/icelea-stock") {
     return;
   }
 
