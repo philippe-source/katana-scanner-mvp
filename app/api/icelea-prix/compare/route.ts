@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const KATANA_KEY = process.env.KATANA_API_KEY!;
 const KATANA_BASE = "https://api.katanamrp.com";
 const SLEEP = (ms: number) => new Promise(r => setTimeout(r, ms));
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface InvoiceItem { ref: string; size_range: string; price: number }
 interface CompareRow {
@@ -28,35 +29,44 @@ async function katanaGet(path: string) {
   throw new Error(`Katana rate-limit dépassé sur ${path}`);
 }
 
-async function loadIceleaMaterials() {
-  const seenIds = new Set<number>();
-  const allVariants: Record<string, unknown>[] = [];
+type IceleaMaterial = { id: number; name: string; variants: Record<string, unknown>[] };
+
+// Parcourir les variantes une par une (/v1/variants?type=material) demande ~61 pages
+// pour 15 000 lignes : impossible dans le temps imparti. Le catalogue des matières
+// tient en 6 pages et Katana renvoie les variantes de chaque matière dans la réponse.
+let cache: { at: number; materials: IceleaMaterial[] } | null = null;
+
+async function loadIceleaMaterials(): Promise<IceleaMaterial[]> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.materials;
+
+  const rawMaterials: { id: number; variants?: Record<string, unknown>[] }[] = [];
   let page = 1;
   while (true) {
-    const data = await katanaGet(`/v1/variants?type=material&limit=100&page=${page}`);
-    const batch: Record<string, unknown>[] = data.data ?? [];
+    const data = await katanaGet(`/v1/materials?limit=250&page=${page}`);
+    const batch: { id: number; variants?: Record<string, unknown>[] }[] = data.data ?? [];
     if (!batch.length) break;
-    let added = 0;
-    for (const v of batch) {
-      if (!seenIds.has(v.id as number)) { seenIds.add(v.id as number); allVariants.push(v); added++; }
-    }
-    if (added === 0 || batch.length < 100) break;
+    rawMaterials.push(...batch);
+    if (batch.length < 250) break;
     page++;
     await SLEEP(200);
   }
 
   // Keep only Icelea SKUs: MTRL-MD-XX-NNN*
-  const icelea = allVariants.filter(v => typeof v.sku === "string" && /^MTRL-MD-[A-Z]{2}-\d+/.test(v.sku));
-
-  const byMatId: Record<number, { id: number; name: string; variants: Record<string, unknown>[] }> = {};
-  for (const v of icelea) {
-    const refMatch = (v.sku as string).match(/MTRL-(MD-[A-Z]{2}-\d+)/);
-    if (!refMatch) continue;
-    const mid = v.material_id as number;
-    if (!byMatId[mid]) byMatId[mid] = { id: mid, name: refMatch[1], variants: [] };
-    byMatId[mid].variants.push(v);
+  const byMatId: Record<number, IceleaMaterial> = {};
+  for (const mat of rawMaterials) {
+    for (const v of mat.variants ?? []) {
+      if (typeof v.sku !== "string" || !/^MTRL-MD-[A-Z]{2}-\d+/.test(v.sku)) continue;
+      const refMatch = v.sku.match(/MTRL-(MD-[A-Z]{2}-\d+)/);
+      if (!refMatch) continue;
+      const mid = (v.material_id as number) ?? mat.id;
+      if (!byMatId[mid]) byMatId[mid] = { id: mid, name: refMatch[1], variants: [] };
+      byMatId[mid].variants.push(v);
+    }
   }
-  return Object.values(byMatId);
+
+  const materials = Object.values(byMatId);
+  cache = { at: Date.now(), materials };
+  return materials;
 }
 
 function parseSizeRange(s: string): number[] | null {
@@ -102,7 +112,7 @@ export async function POST(req: NextRequest) {
 
           if (!sizeMatch) continue;
 
-          const cur = parseFloat(v.purchase_price as string) || 0;
+          const cur = Number(v.purchase_price) || 0;
           const delta = cur > 0 ? (item.price - cur) / cur : null;
 
           rows.push({
