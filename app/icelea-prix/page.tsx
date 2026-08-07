@@ -130,11 +130,14 @@ export default function IceleaPrixPage() {
     }
   }
 
-  // STEP 3 — Apply to Katana (envois par tranches de 150 pour éviter le timeout Vercel)
+  // STEP 3 — Apply to Katana.
+  // Katana freine les écritures : une tranche de 150 tenait le navigateur ~3 min en
+  // attente sans aucun signe de vie, et il finissait par lâcher ("Failed to fetch")
+  // alors que l'écriture, elle, avait abouti. Tranches courtes + reprise sur coupure.
   async function handleApply() {
     if (!compareResult) return;
     setLoading(true); setError(null); setLog([]);
-    const CHUNK = 150;
+    const CHUNK = 25;
     const toUpdate = compareResult.rows.filter(r => r.needs_update);
     const chunks: typeof toUpdate[] = [];
     for (let i = 0; i < toUpdate.length; i += CHUNK) chunks.push(toUpdate.slice(i, i + CHUNK));
@@ -143,21 +146,39 @@ export default function IceleaPrixPage() {
     const allErrorDetails: string[] = [];
     setApplyProgress({ done: 0, total: toUpdate.length });
 
+    // Réécrire un prix déjà écrit repose la même valeur : une tranche est rejouable.
+    async function sendChunk(rows: typeof toUpdate, label: string) {
+      let lastErr = "";
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch("/api/icelea-prix/apply-katana", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rows }),
+          });
+          if (!res.ok) {
+            const txt = await res.text();
+            lastErr = `HTTP ${res.status} — ${txt.slice(0, 200)}`;
+          } else {
+            const data = await res.json() as { updated: number; errors: number; errorDetails: string[]; error?: string };
+            if (data.error) { lastErr = data.error; }
+            else return data;
+          }
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : "connexion interrompue";
+        }
+        if (attempt < 3) {
+          addLog(`  ${label} : ${lastErr} — nouvelle tentative (${attempt + 1}/3)…`);
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        }
+      }
+      throw new Error(`${label} : ${lastErr}`);
+    }
+
     try {
       addLog(`Mise à jour de ${toUpdate.length} variants Katana en ${chunks.length} tranche(s)…`);
       for (let ci = 0; ci < chunks.length; ci++) {
-        const res = await fetch("/api/icelea-prix/apply-katana", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: chunks[ci] }),
-        });
-        if (!res.ok) {
-          const txt = await res.text();
-          setError(`Erreur HTTP ${res.status} (tranche ${ci + 1}) : ${txt.slice(0, 200)}`);
-          return;
-        }
-        const data = await res.json() as { updated: number; errors: number; errorDetails: string[]; error?: string };
-        if (data.error) { setError(data.error); return; }
+        const data = await sendChunk(chunks[ci], `tranche ${ci + 1}/${chunks.length}`);
         totalUpdated += data.updated;
         totalErrors += data.errors;
         allErrorDetails.push(...data.errorDetails);
@@ -168,7 +189,12 @@ export default function IceleaPrixPage() {
       if (totalErrors) addLog(`⚠ ${totalErrors} erreurs.`);
       setStep("csv");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur réseau");
+      const cause = e instanceof Error ? e.message : "Erreur réseau";
+      setError(
+        `${cause} — ${totalUpdated} prix sur ${toUpdate.length} déjà écrits dans Katana. ` +
+        `Relancer est sans risque : réécrire un prix déjà à jour ne change rien.`
+      );
+      addLog(`⚠ Arrêt après ${totalUpdated} prix écrits sur ${toUpdate.length}.`);
     } finally {
       setLoading(false);
       setApplyProgress(null);

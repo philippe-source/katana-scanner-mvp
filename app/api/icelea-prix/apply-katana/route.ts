@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 300;
+
 const KATANA_KEY = process.env.KATANA_API_KEY!;
 const KATANA_BASE = "https://api.katanamrp.com";
 const SLEEP = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -32,9 +34,12 @@ async function patchVariant(variantId: number, price: number) {
 }
 
 // L'API traite UNE tranche à la fois (envoyée par le client).
-// Chaque tranche = max 150 variants, 10 PATCHes parallèles → ~3s/tranche, jamais de timeout.
-const CONCURRENT = 10;
-const INTER_BATCH_MS = 50;
+// Mesuré le 07.08.2026 : à 10 écritures parallèles, Katana renvoie des 429 en rafale
+// et le temps d'attente explose (~3 min pour 150 variants au lieu des ~3s prévues).
+// 5 en parallèle : moins de refus, donc moins d'attente, et des tranches de 25 côté
+// page → chaque appel reste sous ~30s et le navigateur ne lâche plus la connexion.
+const CONCURRENT = 5;
+const INTER_BATCH_MS = 150;
 
 export async function POST(req: NextRequest) {
   try {
