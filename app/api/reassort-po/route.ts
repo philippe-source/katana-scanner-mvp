@@ -13,6 +13,33 @@ function norm(s: string): string {
   return (s ?? "").trim().toLowerCase();
 }
 
+// Tri des lignes du bon de commande (demandé Philippe le 07.08.2026) :
+// 1. type d'addon, 2. couleur, 3. taille. Référence Coloral = MTRL-{TYPE}-{TAILLE}-{COULEUR}.
+// Une référence d'une autre forme garde un tri alphabétique et passe en fin de liste.
+// MTRL-23ALU-BI-66-ROSE existe : la taille n'est pas toujours au même rang. On la cherche
+// sur le premier morceau numérique ; sans taille lisible, la ligne passe en fin de sa couleur.
+function coloralSortKey(sku: string): { type: string; color: string; size: number } | null {
+  const parts = (sku ?? "").trim().toUpperCase().split("-");
+  if (parts[0] !== "MTRL" || parts.length < 4) return null;
+  const sizeAt = parts.findIndex((p, i) => i >= 2 && /^\d+$/.test(p));
+  const size = sizeAt === -1 ? Number.MAX_SAFE_INTEGER : Number(parts[sizeAt]);
+  const color = parts.filter((_, i) => i >= 2 && i !== sizeAt).join("-");
+  return { type: parts[1], color, size };
+}
+
+function sortPoItems(items: POItem[]): POItem[] {
+  return [...items].sort((a, b) => {
+    const ka = coloralSortKey(a.sku);
+    const kb = coloralSortKey(b.sku);
+    if (!ka && !kb) return a.sku.localeCompare(b.sku);
+    if (!ka) return 1;
+    if (!kb) return -1;
+    if (ka.type !== kb.type) return ka.type.localeCompare(kb.type);
+    if (ka.color !== kb.color) return ka.color.localeCompare(kb.color);
+    return ka.size - kb.size;
+  });
+}
+
 // POST { items: POItem[], expectedArrival?: string }
 //   → { pos: [{ supplierName, poNumber, poId, katanaUrl, lineCount, totalQty }], unresolvedSkus, unmatchedSuppliers }
 export async function POST(req: NextRequest) {
@@ -60,9 +87,9 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 4. Build PO rows from the pre-resolved variant map
+      // 4. Build PO rows from the pre-resolved variant map, triées type → couleur → taille
       const rows: { variantId: number; quantity: number; pricePerUnit: number }[] = [];
-      for (const it of groupItems) {
+      for (const it of sortPoItems(groupItems)) {
         const variant = variantBySku.get(it.sku);
         if (!variant) {
           unresolvedSkus.push(it.sku);

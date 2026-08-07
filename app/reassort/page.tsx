@@ -276,6 +276,12 @@ function mergeSources(
   return result;
 }
 
+// Références bicolores (ex. MTRL-23ALU-BI-66-ROSE) : plus réassorties (Philippe, 07.08.2026).
+// Elles portent en plus un morceau « BI » qui décale la taille et fabriquait une couleur fantôme.
+function isRetiredSku(sku: string): boolean {
+  return `-${(sku ?? "").trim().toUpperCase()}-`.includes("-BI-");
+}
+
 function roundUp(value: number, multiple: number): number {
   if (value <= 0) return 0;
   if (multiple <= 1) return Math.ceil(value);
@@ -419,11 +425,26 @@ function coloralRowFromMerged(
   };
 }
 
-// Garantit le minimum PAR COULEUR (toutes tailles d'un type) en reconstituant une gamme :
-//   1. chaque taille couvre d'abord son besoin réel, avec un plancher de minSku par SKU commandé ;
-//   2. le complément pour atteindre le minimum couleur est réparti vers les tailles qui se vendent
-//      (vélocité), en pouvant FAIRE ENTRER d'autres tailles 50-72 (chacune ≥ minSku) — jamais en
-//      gonflant une seule taille. Les tailles ajoutées deviennent de nouvelles lignes de réassort.
+// Part maximale du minimum d'une couleur réservée aux tailles sans aucune vente.
+const COLORAL_NO_SALE_SHARE = 0.20;
+
+// Garantit le minimum PAR COULEUR (toutes tailles d'un type) en reconstituant une gamme.
+//
+// Règle de NIVELLEMENT (tranchée avec Philippe le 07.08.2026), en remplacement de
+// « couvrir le besoin puis poser le complément sur la taille qui vend le mieux ».
+// L'ancienne règle ne regardait jamais le stock des autres tailles : sur les 11 couleurs
+// (sur 53) où une seule taille avait un besoin, elle empilait 17 à 30 pièces sur cette
+// taille — 2 pièces de besoin réel devenaient 20 commandées sur MEDALU LILACASHMERE —
+// et laissait la moitié de la gamme à zéro.
+//
+//   1. chaque taille couvre d'abord son besoin réel, plancher de minSku par SKU commandé ;
+//   2. le complément jusqu'au minimum couleur va, pas à pas, à la taille dont le CASIER est le
+//      plus vide (stock en main + ce qui lui est déjà attribué) : une taille déjà pleine ne
+//      reçoit rien, une taille vide se remplit en premier ;
+//   3. à casier égal, une taille qui vend passe devant une taille qui ne vend pas — les tailles
+//      sans aucune vente sont donc servies en dernier et ne peuvent pas dépasser ensemble
+//      COLORAL_NO_SALE_SHARE de la commande. Une taille peut n'avoir rien vendu FAUTE de stock,
+//      et ces fichiers ne permettent pas de trancher.
 function applyColoralMoq(
   results: ResultRow[],
   merged: MergedRow[],
@@ -465,35 +486,43 @@ function applyColoralMoq(
     const base = alloc.reduce((a, b) => a + b, 0);
     const target = Math.max(min ?? 0, base);
 
-    // 2. Vélocité + part idéale dans la gamme
     const vel = skus.map((m) => coloralVelocity(m, mode));
-    const velSum = vel.reduce((a, b) => a + b, 0);
-    const ideal = vel.map((v) => (velSum > 0 ? (v / velSum) * target : 0));
+    const pos = skus.map((m) => m.stockPosition);
 
-    // 3. Répartir le complément : la taille la plus sous sa part idéale d'abord ;
-    //    une taille fermée ne s'ouvre qu'avec minSku d'un coup, et seulement si elle vend.
+    // 2. Nivellement des casiers : chaque pas va à la taille dont le casier sera le PLUS VIDE
+    //    après ce qui lui est déjà attribué. À casier égal, une taille qui vend passe devant
+    //    une taille qui ne vend pas, puis la plus rapide devant la plus lente.
+    //    Une taille fermée ne s'ouvre que d'un bloc de minSku (contrainte fournisseur), et
+    //    les tailles sans aucune vente ne peuvent pas dépasser ensemble COLORAL_NO_SALE_SHARE.
+    //
+    //    Un nivellement par JOURS de couverture a été essayé puis écarté : les tailles sans
+    //    vente ont une couverture infinie, donc tout le complément retombait sur l'unique
+    //    taille vendeuse (40 pièces sur MEDALU ABRICOT 62) — pire que la règle d'origine.
+    const cap = Math.floor(target * COLORAL_NO_SALE_SHARE);
+    let toNoSale = 0;
     let surplus = target - base;
     let guard = 0;
     while (surplus > 0 && guard++ < 100000) {
       let bestK = -1;
-      let bestDeficit = 0;
+      let bestLevel = 0, bestNoSale = 0, bestVel = 0;
       for (let k = 0; k < skus.length; k++) {
-        const deficit = ideal[k] - alloc[k];
-        if (deficit <= bestDeficit) continue;
-        const eligible = alloc[k] >= minSku ? true : surplus >= minSku && vel[k] > 0;
-        if (!eligible) continue;
-        bestK = k; bestDeficit = deficit;
-      }
-      if (bestK === -1) {
-        // reste à poser : sur la taille déjà ouverte qui a la plus grosse quantité
-        let fk = -1, mx = -1;
-        for (let k = 0; k < skus.length; k++) {
-          if (alloc[k] >= minSku && alloc[k] > mx) { mx = alloc[k]; fk = k; }
+        const opening = alloc[k] <= 0;
+        if (opening && surplus < minSku) continue;
+        if (opening && vel[k] <= 0 && toNoSale + minSku > cap) continue;
+        const level = pos[k] + alloc[k];
+        const noSale = vel[k] > 0 ? 0 : 1;
+        if (bestK !== -1) {
+          if (level > bestLevel) continue;
+          if (level === bestLevel) {
+            if (noSale > bestNoSale) continue;
+            if (noSale === bestNoSale && vel[k] <= bestVel) continue;
+          }
         }
-        if (fk === -1) break;
-        alloc[fk] += 1; surplus -= 1; continue;
+        bestK = k; bestLevel = level; bestNoSale = noSale; bestVel = vel[k];
       }
-      const step = alloc[bestK] >= minSku ? 1 : minSku;
+      if (bestK === -1) break;
+      if (alloc[bestK] <= 0 && vel[bestK] <= 0) toNoSale += minSku;
+      const step = alloc[bestK] > 0 ? 1 : minSku;
       alloc[bestK] += step; surplus -= step;
     }
 
@@ -743,8 +772,11 @@ export default function ReassortPage() {
 
       addLog(`SKU trouvés — 7j: ${map7.size} | 30j: ${map30.size} | 90j: ${map90.size}`);
 
-      const merged = mergeSources(map7, map30, map90);
+      const mergedAll = mergeSources(map7, map30, map90);
+      const merged = mergedAll.filter((r) => !isRetiredSku(r.sku));
+      const retired = mergedAll.length - merged.length;
       addLog(`SKU fusionnés (union): ${merged.length}`);
+      if (retired > 0) addLog(`${retired} référence(s) bicolore (-BI-) écartée(s) : plus de réassort.`);
 
       if (params.mode === "volatile") {
         const continuous = merged.filter((r) => r.continuousSalesFlag).length;
