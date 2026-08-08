@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   loadReassortDataForSupplier,
   loadMovements,
-  loadRecipeIndex,
+  warmRecipeIndex,
   loadRecentProductDemand,
   windowsForSupplier,
 } from "@/lib/reassort-katana";
@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ step, read, days: windows[2] });
       }
       case "recettes": {
-        const index = await loadRecipeIndex();
-        return NextResponse.json({ step, materials: index.size });
+        // Lecture par tranches : l'écran rappelle tant que done vaut false.
+        const r = await warmRecipeIndex();
+        return NextResponse.json({ step, materials: r.materials, done: r.done, page: r.page });
       }
       case "commandes": {
         const demand = await loadRecentProductDemand();

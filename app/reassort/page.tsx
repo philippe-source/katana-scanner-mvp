@@ -838,17 +838,30 @@ export default function ReassortPage() {
         for (const [step, libelle] of etapes) {
           addLog(`${libelle}…`);
           setLog([...lines]);
-          const r = await fetch("/api/reassort-katana/load", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ supplierId, supplierName: supplier?.name, step }),
-          });
-          const j = (await r.json()) as { error?: string; read?: number; materials?: number; products?: number; days?: number };
-          if (!r.ok || j.error) throw new Error(j.error ?? `Erreur ${r.status} (${libelle})`);
-          if (j.read != null) addLog(`  ${j.read} mouvements lus sur ${j.days} jours.`);
-          if (j.materials != null) addLog(`  ${j.materials} matières présentes dans les recettes.`);
-          if (j.products != null) addLog(`  ${j.products} bijoux commandés et non expédiés.`);
-          setLog([...lines]);
+          // Le livre des recettes est trop gros pour un seul passage : on rappelle
+          // tant qu'il reste des pages (chaque passage reprend où le précédent
+          // s'est arrêté).
+          let fini = false;
+          let tours = 0;
+          while (!fini && tours++ < 40) {
+            const r = await fetch("/api/reassort-katana/load", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ supplierId, supplierName: supplier?.name, step }),
+            });
+            const j = (await r.json()) as {
+              error?: string; read?: number; materials?: number; products?: number;
+              days?: number; done?: boolean; page?: number;
+            };
+            if (!r.ok || j.error) throw new Error(j.error ?? `Erreur ${r.status} (${libelle})`);
+            fini = step !== "recettes" || j.done === true;
+            if (j.read != null) addLog(`  ${j.read} mouvements lus sur ${j.days} jours.`);
+            if (j.products != null) addLog(`  ${j.products} bijoux commandés et non expédiés.`);
+            if (j.materials != null) {
+              addLog(`  ${j.materials} matières lues dans les recettes${fini ? "." : "…"}`);
+            }
+            setLog([...lines]);
+          }
         }
 
         addLog("Assemblage…");

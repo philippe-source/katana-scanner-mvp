@@ -61,14 +61,32 @@ async function get(path: string): Promise<Record<string, unknown>> {
   throw new Error(`Katana : limite de cadence dépassée sur ${path}`);
 }
 
+// Garde-fou contre la pagination incohérente de Katana : certaines listes renvoient
+// encore 250 lignes pour des pages situées au-delà de la fin, ce qui faisait tourner
+// la lecture en rond jusqu'au dépassement des 300 secondes (constaté sur les recettes
+// le 08.08.2026). On s'arrête dès qu'une page n'apporte plus aucune ligne nouvelle,
+// et de toute façon au bout de MAX_PAGES.
+const MAX_PAGES = 400;
+
 async function getAllPages<T>(path: string, limit = 250): Promise<T[]> {
   const out: T[] = [];
+  const seen = new Set<string>();
   let page = 1;
-  while (true) {
+  while (page <= MAX_PAGES) {
     const sep = path.includes("?") ? "&" : "?";
     const data = await get(`${path}${sep}limit=${limit}&page=${page}`);
     const batch = (data.data ?? []) as T[];
-    out.push(...batch);
+    if (!batch.length) break;
+
+    let added = 0;
+    for (const row of batch) {
+      const key = String((row as { id?: unknown }).id ?? JSON.stringify(row));
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+      added++;
+    }
+    if (added === 0) break; // page déjà vue : on tourne en rond
     if (batch.length < limit) break;
     page++;
   }
@@ -256,29 +274,64 @@ export async function loadRecentProductDemand(): Promise<Map<number, number>> {
 // Le filtre par ingrédient est le seul que Katana honore sur les recettes (vérifié) —
 // le filtre par produit est ignoré, d'où ce sens de lecture.
 // Interroger la recette matière par matière est impossible : Katana n'autorise que
-// 60 appels par minute, et 471 matières demanderaient huit minutes. Le livre complet
-// tient en ~130 pages (~32 000 lignes), soit environ deux minutes, gardées 10 minutes
-// en mémoire et partagées par tous les fournisseurs.
-let recipesCache: { at: number; value: Map<number, { productVariantId: number; quantity: number }[]> } | null = null;
+// 60 appels par minute, et 471 matières demanderaient huit minutes. Mais le livre
+// complet est lui aussi très gros — mesuré à 428 secondes, au-delà des 300 autorisées
+// (08.08.2026). Il est donc lu par TRANCHES, l'écran rappelant jusqu'à la fin.
+const RECIPE_PAGES_PER_CALL = 40;
 
-export async function loadRecipeIndex(): Promise<Map<number, { productVariantId: number; quantity: number }[]>> {
-  if (recipesCache && Date.now() - recipesCache.at < MOVEMENTS_TTL_MS) return recipesCache.value;
+type RecipeIndex = Map<number, { productVariantId: number; quantity: number }[]>;
+let recipesCache: { at: number; value: RecipeIndex; nextPage: number; done: boolean } | null = null;
 
-  const rows = await getAllPages<{
-    ingredient_variant_id: number;
-    product_variant_id: number;
-    quantity: number | string;
-  }>("/v1/recipes");
-
-  const value = new Map<number, { productVariantId: number; quantity: number }[]>();
-  for (const r of rows) {
-    if (r.ingredient_variant_id == null) continue;
-    const list = value.get(r.ingredient_variant_id) ?? [];
-    list.push({ productVariantId: r.product_variant_id, quantity: Number(r.quantity ?? 0) });
-    value.set(r.ingredient_variant_id, list);
+// Lit une tranche du livre des recettes. Renvoie où reprendre, ou done = true.
+export async function warmRecipeIndex(): Promise<{ done: boolean; page: number; materials: number }> {
+  if (recipesCache && Date.now() - recipesCache.at > MOVEMENTS_TTL_MS) recipesCache = null;
+  if (!recipesCache) {
+    recipesCache = { at: Date.now(), value: new Map(), nextPage: 1, done: false };
   }
-  recipesCache = { at: Date.now(), value };
-  return value;
+  if (recipesCache.done) {
+    return { done: true, page: recipesCache.nextPage, materials: recipesCache.value.size };
+  }
+
+  const seenEmptyOrRepeat = { stop: false };
+  let page = recipesCache.nextPage;
+  for (let i = 0; i < RECIPE_PAGES_PER_CALL; i++) {
+    const data = await get(`/v1/recipes?limit=250&page=${page}`);
+    const batch = (data.data ?? []) as {
+      ingredient_variant_id: number;
+      product_variant_id: number;
+      quantity: number | string;
+    }[];
+    if (!batch.length) {
+      seenEmptyOrRepeat.stop = true;
+      break;
+    }
+    for (const r of batch) {
+      if (r.ingredient_variant_id == null) continue;
+      const list = recipesCache.value.get(r.ingredient_variant_id) ?? [];
+      list.push({ productVariantId: r.product_variant_id, quantity: Number(r.quantity ?? 0) });
+      recipesCache.value.set(r.ingredient_variant_id, list);
+    }
+    page++;
+    if (batch.length < 250) {
+      seenEmptyOrRepeat.stop = true;
+      break;
+    }
+    if (page > MAX_PAGES) {
+      seenEmptyOrRepeat.stop = true;
+      break;
+    }
+  }
+
+  recipesCache.nextPage = page;
+  recipesCache.done = seenEmptyOrRepeat.stop;
+  return { done: recipesCache.done, page, materials: recipesCache.value.size };
+}
+
+export async function loadRecipeIndex(): Promise<RecipeIndex> {
+  while (!recipesCache?.done) {
+    await warmRecipeIndex();
+  }
+  return recipesCache.value;
 }
 
 async function reservationsForMaterials(
