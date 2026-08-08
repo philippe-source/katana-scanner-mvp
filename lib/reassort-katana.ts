@@ -235,11 +235,12 @@ export async function listReassortSuppliers(): Promise<{ id: number; name: strin
 // ─── Point d'entrée : les données de réassort d'un fournisseur ─────────────────
 
 // Fenêtres d'observation, en jours : courte / moyenne / longue.
-// Coloral se juge sur 30 jours (7 / 15 / 30) et non 90 : l'aluminium anodisé suit les
+// Coloral se juge sur 60 jours (7 / 30 / 60) et non 90 : l'aluminium anodisé suit les
 // collections, et une histoire de trois mois fait remonter des couleurs qui ne tournent
-// plus. Décidé avec Philippe le 07.08.2026.
+// plus. Essayé d'abord à 30 jours (7/15/30) le 07.08.2026 : la commande tombait de
+// 2369 à 1089 pièces et de 40 à 25 couleurs — trop sec. Arrêté à 60 le 08.08.2026.
 export const DEFAULT_WINDOWS: [number, number, number] = [7, 30, 90];
-export const SHORT_HORIZON_WINDOWS: [number, number, number] = [7, 15, 30];
+export const SHORT_HORIZON_WINDOWS: [number, number, number] = [7, 30, 60];
 const COLORAL_SUPPLIER_NAME = "coloral";
 
 export function windowsForSupplier(supplierName: string): [number, number, number] {
