@@ -211,6 +211,35 @@ async function fetchStockFor(
   return out;
 }
 
+// ─── Réservations récentes (commandes clients non expédiées) ───────────────────
+//
+// Le chiffre « réservé » de Katana n'est pas fiable : il traîne plus de 15 000
+// commandes clients jamais closes, dont de très vieilles. Philippe (08.08.2026) :
+// tout ce qui a plus de RESERVATION_MAX_AGE_DAYS jours est à éliminer.
+export const RESERVATION_MAX_AGE_DAYS = 50;
+
+let reservationsCache: { at: number; value: Map<number, number> } | null = null;
+
+async function loadRecentReservations(): Promise<Map<number, number>> {
+  if (reservationsCache && Date.now() - reservationsCache.at < MOVEMENTS_TTL_MS) {
+    return reservationsCache.value;
+  }
+  const since = new Date(Date.now() - RESERVATION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const orders = await getAllPages<{
+    sales_order_rows?: { variant_id: number; quantity: number | string }[];
+  }>(`/v1/sales_orders?status=NOT_SHIPPED&created_at_min=${encodeURIComponent(since)}`);
+
+  const value = new Map<number, number>();
+  for (const o of orders) {
+    for (const row of o.sales_order_rows ?? []) {
+      if (row.variant_id == null) continue;
+      value.set(row.variant_id, (value.get(row.variant_id) ?? 0) + Number(row.quantity ?? 0));
+    }
+  }
+  reservationsCache = { at: Date.now(), value };
+  return value;
+}
+
 // ─── Commandes fournisseur en cours (pour ne pas commander deux fois) ──────────
 
 async function loadIncoming(supplierId: number): Promise<Map<number, number>> {
@@ -290,16 +319,20 @@ export async function loadReassortDataForSupplier(
   // triplait la commande (1524 → 4631 pièces sur Coloral), ce qui n'a pas de sens quand
   // il reste de la marge ; en revanche sous 3 pièces, ce qui est promis est réellement
   // parti et le casier est vide pour la vente suivante.
-  const [stock, incoming] = await Promise.all([
+  const [stock, incoming, reservations] = await Promise.all([
     fetchStockFor(variants.map((v) => v.variantId)),
     loadIncoming(supplierId),
+    loadRecentReservations(),
   ]);
 
   const rows: KatanaReassortRow[] = variants.map((v) => {
     const s = byVariant.get(v.variantId);
     const inv = stock.get(v.variantId);
     const physical = inv?.inStock ?? 0;
-    const committed = inv?.committed ?? 0;
+    // On n'utilise PAS le « réservé » de l'inventaire : il agrège des commandes
+    // clients jamais closes depuis des années. Seules comptent celles des
+    // RESERVATION_MAX_AGE_DAYS derniers jours.
+    const committed = reservations.get(v.variantId) ?? 0;
     const usable = physical < COMMITTED_THRESHOLD ? physical - committed : physical;
     return {
       sku: v.sku,
