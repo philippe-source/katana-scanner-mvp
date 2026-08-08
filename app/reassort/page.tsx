@@ -292,8 +292,16 @@ function roundUp(value: number, multiple: number): number {
 function computeRecommendations(params: Params, merged: MergedRow[]): ResultRow[] {
   let rows = [...merged];
 
+  // Une position de stock négative = des commandes déjà prises qui attendent la
+  // marchandise. C'est la demande la plus certaine qui soit : elle passe AVANT les
+  // filtres d'historique. Cas trouvé par Philippe le 08.08.2026 sur
+  // MTRL-MEDALU-56-JAUNECHAUD : 1 pièce en tiroir, 12 réservées, aucune sortie depuis
+  // 30 jours — les deux filtres l'écartaient, donc aucun réassort proposé alors que
+  // 12 commandes attendaient.
+  const shortfallOf = (r: MergedRow) => (r.stockPosition < 0 ? -r.stockPosition : 0);
+
   if (params.positive30dOr90dOnly) {
-    rows = rows.filter((r) => r.totalQty30 > 0 || r.totalQty90 > 0);
+    rows = rows.filter((r) => r.totalQty30 > 0 || r.totalQty90 > 0 || shortfallOf(r) > 0);
   }
 
   const results: ResultRow[] = [];
@@ -302,9 +310,10 @@ function computeRecommendations(params: Params, merged: MergedRow[]): ResultRow[
     let planningDailyDemand: number;
     let protectionDays: number;
     let targetStock: number;
+    const shortfall = shortfallOf(r);
 
     if (params.mode === "volatile") {
-      if (params.continuousSalesOnly && !r.continuousSalesFlag) continue;
+      if (params.continuousSalesOnly && !r.continuousSalesFlag && shortfall <= 0) continue;
       planningDailyDemand = r.planningDailyDemandVolatile;
       protectionDays = params.leadTimeDays + params.reviewPeriodDays;
       targetStock = Math.ceil(
@@ -333,7 +342,8 @@ function computeRecommendations(params: Params, merged: MergedRow[]): ResultRow[
     if (recommendedQty <= 0) continue;
 
     let riskNote = "";
-    if (r.stockPosition <= 0) riskNote = "Aucun stock disponible / entrant";
+    if (shortfall > 0) riskNote = `${shortfall} pièce(s) déjà promise(s) sans stock`;
+    else if (r.stockPosition <= 0) riskNote = "Aucun stock disponible / entrant";
     else if (estimatedCoverDays <= 7) riskNote = "Couverture critique ≤ 7 jours";
     else if (estimatedCoverDays <= 21) riskNote = "Couverture courte ≤ 21 jours";
     else if (estimatedCoverDays <= 45) riskNote = "Couverture à surveiller ≤ 45 jours";
