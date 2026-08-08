@@ -827,10 +827,36 @@ export default function ReassortPage() {
         const supplier = suppliers.find((s) => s.id === supplierId);
         addLog(`Lecture directe dans Katana — ${supplier?.name ?? supplierId}…`);
         setLog([...lines]);
+        // Katana n'accepte que 60 demandes par minute : on prépare la mémoire de
+        // travail en trois passages courts avant d'assembler, sinon le tout dépasse
+        // les 5 minutes autorisées.
+        const etapes = [
+          ["mouvements", "Sorties de stock"],
+          ["recettes", "Recettes des bijoux"],
+          ["commandes", "Commandes clientes en attente"],
+        ] as const;
+        for (const [step, libelle] of etapes) {
+          addLog(`${libelle}…`);
+          setLog([...lines]);
+          const r = await fetch("/api/reassort-katana/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ supplierId, supplierName: supplier?.name, step }),
+          });
+          const j = (await r.json()) as { error?: string; read?: number; materials?: number; products?: number; days?: number };
+          if (!r.ok || j.error) throw new Error(j.error ?? `Erreur ${r.status} (${libelle})`);
+          if (j.read != null) addLog(`  ${j.read} mouvements lus sur ${j.days} jours.`);
+          if (j.materials != null) addLog(`  ${j.materials} matières présentes dans les recettes.`);
+          if (j.products != null) addLog(`  ${j.products} bijoux commandés et non expédiés.`);
+          setLog([...lines]);
+        }
+
+        addLog("Assemblage…");
+        setLog([...lines]);
         const res = await fetch("/api/reassort-katana/load", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ supplierId, supplierName: supplier?.name }),
+          body: JSON.stringify({ supplierId, supplierName: supplier?.name, step: "final" }),
         });
         const data = (await res.json()) as {
           rows?: KatanaReassortRow[];

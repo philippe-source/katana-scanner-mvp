@@ -132,16 +132,21 @@ function sumWindow(s: MovementSummary | undefined, days: number): number {
   return total;
 }
 
-let movementsCache: { at: number; value: Map<number, MovementSummary>; read: number } | null = null;
+let movementsCache: { at: number; days: number; value: Map<number, MovementSummary>; read: number } | null = null;
 
-async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary>; read: number }> {
-  if (movementsCache && Date.now() - movementsCache.at < MOVEMENTS_TTL_MS) {
+// On ne lit que la période réellement utilisée par le fournisseur : Coloral se juge sur
+// 30 jours, donc ~25 paquets au lieu de 73. Chaque paquet compte : Katana n'accepte que
+// 60 demandes par minute, et le calcul complet dépassait les 5 minutes autorisées.
+export async function loadMovements(
+  historyDays = HISTORY_DAYS
+): Promise<{ byVariant: Map<number, MovementSummary>; read: number }> {
+  if (movementsCache && Date.now() - movementsCache.at < MOVEMENTS_TTL_MS && movementsCache.days >= historyDays) {
     return { byVariant: movementsCache.value, read: movementsCache.read };
   }
 
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
-  const since = new Date(now - HISTORY_DAYS * dayMs).toISOString();
+  const since = new Date(now - historyDays * dayMs).toISOString();
 
   const movements = await getAllPages<{
     variant_id: number;
@@ -158,7 +163,7 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
     if (vid == null) continue;
     let s = byVariant.get(vid);
     if (!s) {
-      s = { outByDay: new Array(HISTORY_DAYS + 1).fill(0), lastByLocation: new Map() };
+      s = { outByDay: new Array(historyDays + 1).fill(0), lastByLocation: new Map() };
       byVariant.set(vid, s);
     }
     const date = mv.movement_date ?? mv.created_at ?? "";
@@ -169,12 +174,12 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
     const change = Number(mv.quantity_change ?? 0);
     if (change >= 0) continue; // une entrée n'est pas une sortie
     const t = Date.parse(date);
-    const daysAgo = Number.isFinite(t) ? Math.floor((now - t) / dayMs) : HISTORY_DAYS;
-    const slot = Math.min(Math.max(daysAgo, 0), HISTORY_DAYS);
+    const daysAgo = Number.isFinite(t) ? Math.floor((now - t) / dayMs) : historyDays;
+    const slot = Math.min(Math.max(daysAgo, 0), historyDays);
     s.outByDay[slot] += -change;
   }
 
-  movementsCache = { at: Date.now(), value: byVariant, read: movements.length };
+  movementsCache = { at: Date.now(), days: historyDays, value: byVariant, read: movements.length };
   return { byVariant, read: movements.length };
 }
 
@@ -226,7 +231,7 @@ export const RESERVATION_MAX_AGE_DAYS = 50;
 let reservationsCache: { at: number; value: Map<number, number> } | null = null;
 
 // Quantités commandées ces 50 derniers jours, par variante de PRODUIT (le bijou).
-async function loadRecentProductDemand(): Promise<Map<number, number>> {
+export async function loadRecentProductDemand(): Promise<Map<number, number>> {
   if (reservationsCache && Date.now() - reservationsCache.at < MOVEMENTS_TTL_MS) {
     return reservationsCache.value;
   }
@@ -256,7 +261,7 @@ async function loadRecentProductDemand(): Promise<Map<number, number>> {
 // en mémoire et partagées par tous les fournisseurs.
 let recipesCache: { at: number; value: Map<number, { productVariantId: number; quantity: number }[]> } | null = null;
 
-async function loadRecipeIndex(): Promise<Map<number, { productVariantId: number; quantity: number }[]>> {
+export async function loadRecipeIndex(): Promise<Map<number, { productVariantId: number; quantity: number }[]>> {
   if (recipesCache && Date.now() - recipesCache.at < MOVEMENTS_TTL_MS) return recipesCache.value;
 
   const rows = await getAllPages<{
@@ -356,7 +361,7 @@ export async function loadReassortDataForSupplier(
 }> {
   const windows = windowsForSupplier(supplierName);
   const all = (await loadMaterialVariants()).filter((v) => v.supplierId === supplierId);
-  const { byVariant, read } = await loadMovements();
+  const { byVariant, read } = await loadMovements(windows[2]);
 
   // On ne garde que les matières qui ont bougé au moins une fois en 90 jours, mais on
   // garde TOUTES leurs tailles : une taille immobile doit rester disponible pour la
