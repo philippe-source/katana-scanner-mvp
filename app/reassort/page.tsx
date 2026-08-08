@@ -681,11 +681,15 @@ function RiskBadge({ note }: { note: string }) {
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
+// Objectif fixé par Philippe le 08.08.2026 : couvrir 45 jours de ventes avec le stock.
+// En mode volatil la protection vaut délai de livraison + période entre commandes, donc
+// 45 + 0 ; les jours de sécurité restent à 0 pour que la cible soit exactement 45 jours
+// de ventes et pas davantage. Les trois réglages restent modifiables sur l'écran.
 const DEFAULT_PARAMS: Params = {
   mode: "volatile",
   leadTimeDays: 45,
-  reviewPeriodDays: 30,
-  safetyDays: 15,
+  reviewPeriodDays: 0,
+  safetyDays: 0,
   minOrderQty: 0,
   roundToPack: 1,
   positive30dOr90dOnly: true,
@@ -1090,7 +1094,7 @@ export default function ReassortPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SpinInput label="Délai de livraison" value={params.leadTimeDays} min={0} max={365} suffix="jours" onChange={(v) => set("leadTimeDays", v)} />
             <SpinInput label="Quantité minimum" value={params.minOrderQty} min={0} max={100000} onChange={(v) => set("minOrderQty", v)} />
-            <SpinInput label="Période entre commandes" value={params.reviewPeriodDays} min={1} max={90} suffix="jours" disabled={params.mode === "continuous"} onChange={(v) => set("reviewPeriodDays", v)} />
+            <SpinInput label="Période entre commandes" value={params.reviewPeriodDays} min={0} max={90} suffix="jours" disabled={params.mode === "continuous"} onChange={(v) => set("reviewPeriodDays", v)} />
             <SpinInput label="Arrondir au multiple" value={params.roundToPack} min={1} max={10000} onChange={(v) => set("roundToPack", v)} />
             <SpinInput label="Jours de sécurité" value={params.safetyDays} min={0} max={120} suffix="jours" onChange={(v) => set("safetyDays", v)} />
           </div>

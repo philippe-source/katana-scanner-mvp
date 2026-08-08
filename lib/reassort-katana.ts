@@ -19,6 +19,10 @@
 const BASE = "https://api.katanamrp.com";
 const KEY = process.env.KATANA_API_KEY!;
 
+// Sous ce nombre de pièces physiques, ce qui est réservé à des commandes en attente est
+// déduit du stock disponible : le casier est déjà vide pour la vente suivante.
+export const COMMITTED_THRESHOLD = 3;
+
 const MATERIALS_TTL_MS = 10 * 60 * 1000;
 const MOVEMENTS_TTL_MS = 10 * 60 * 1000;
 const HISTORY_DAYS = 90;
@@ -241,12 +245,12 @@ export async function listReassortSuppliers(): Promise<{ id: number; name: strin
 // ─── Point d'entrée : les données de réassort d'un fournisseur ─────────────────
 
 // Fenêtres d'observation, en jours : courte / moyenne / longue.
-// Coloral se juge sur 60 jours (7 / 30 / 60) et non 90 : l'aluminium anodisé suit les
-// collections, et une histoire de trois mois fait remonter des couleurs qui ne tournent
-// plus. Essayé d'abord à 30 jours (7/15/30) le 07.08.2026 : la commande tombait de
-// 2369 à 1089 pièces et de 40 à 25 couleurs — trop sec. Arrêté à 60 le 08.08.2026.
+// Coloral se juge sur 30 jours (7 / 15 / 30) : l'aluminium anodisé suit les collections,
+// et une histoire de trois mois fait remonter des couleurs qui ne tournent plus.
+// Cheminement du 07-08.08.2026 avec Philippe : 90 → 30 (trop sec) → 60 → 30 retenu une
+// fois le stock réservé correctement traité, qui changeait la donne.
 export const DEFAULT_WINDOWS: [number, number, number] = [7, 30, 90];
-export const SHORT_HORIZON_WINDOWS: [number, number, number] = [7, 30, 60];
+export const SHORT_HORIZON_WINDOWS: [number, number, number] = [7, 15, 30];
 const COLORAL_SUPPLIER_NAME = "coloral";
 
 export function windowsForSupplier(supplierName: string): [number, number, number] {
@@ -277,12 +281,15 @@ export async function loadReassortDataForSupplier(
   const activeMaterials = new Set(all.filter((v) => byVariant.has(v.variantId)).map((v) => v.materialId));
   const variants = all.filter((v) => activeMaterials.has(v.materialId));
 
-  // Le stock est désormais TOUJOURS lu dans l'inventaire, plus reconstitué depuis le
-  // journal des mouvements. Le journal donne bien la quantité physique (contrôlée : 40
-  // références sur 40 identiques à Katana), mais il ignore la part RÉSERVÉE aux commandes
-  // en attente — et cette part est énorme : 2 369 pièces réservées sur 40 références
-  // Coloral, dont 39 avaient en réalité moins de 3 pièces libres. Compter le stock
-  // physique comme disponible faisait donc gravement sous-commander (Philippe, 08.08.2026).
+  // Le stock est TOUJOURS lu dans l'inventaire, plus reconstitué depuis le journal des
+  // mouvements : le journal donne bien la quantité physique (contrôlé, 40 références sur
+  // 40 identiques à Katana) mais ignore la part RÉSERVÉE aux commandes en attente.
+  //
+  // Cette part réservée n'est déduite que lorsque le tiroir est presque vide — moins de
+  // COMMITTED_THRESHOLD pièces physiques (Philippe, 08.08.2026). La déduire partout
+  // triplait la commande (1524 → 4631 pièces sur Coloral), ce qui n'a pas de sens quand
+  // il reste de la marge ; en revanche sous 3 pièces, ce qui est promis est réellement
+  // parti et le casier est vide pour la vente suivante.
   const [stock, incoming] = await Promise.all([
     fetchStockFor(variants.map((v) => v.variantId)),
     loadIncoming(supplierId),
@@ -293,12 +300,12 @@ export async function loadReassortDataForSupplier(
     const inv = stock.get(v.variantId);
     const physical = inv?.inStock ?? 0;
     const committed = inv?.committed ?? 0;
+    const usable = physical < COMMITTED_THRESHOLD ? physical - committed : physical;
     return {
       sku: v.sku,
       name: v.materialName,
       supplier: supplierName,
-      // Ce qui est réellement libre de partir : le physique moins le réservé.
-      inStock: physical - committed,
+      inStock: usable,
       physicalStock: physical,
       committedStock: committed,
       expected: incoming.get(v.variantId) ?? inv?.expected ?? 0,
