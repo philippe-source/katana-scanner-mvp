@@ -27,7 +27,10 @@ export interface KatanaReassortRow {
   sku: string;
   name: string;
   supplier: string;
+  // Stock réellement libre : physique moins ce qui est réservé à des commandes en attente.
   inStock: number;
+  physicalStock: number;
+  committedStock: number;
   expected: number;
   // Sorties de stock sur les trois fenêtres d'observation du fournisseur
   // (7/30/90 par défaut, 7/15/30 pour Coloral).
@@ -175,8 +178,10 @@ async function loadMovements(): Promise<{ byVariant: Map<number, MovementSummary
 
 // L'inventaire complet dépasse 175 000 lignes : on ne le balaie jamais. Le filtre
 // variant_id accepte plusieurs valeurs, donc on ne demande que ce qui manque.
-async function fetchStockFor(variantIds: number[]): Promise<Map<number, { inStock: number; expected: number }>> {
-  const out = new Map<number, { inStock: number; expected: number }>();
+async function fetchStockFor(
+  variantIds: number[]
+): Promise<Map<number, { inStock: number; committed: number; expected: number }>> {
+  const out = new Map<number, { inStock: number; committed: number; expected: number }>();
   const BATCH = 40; // 40 références × 5 emplacements = 200 lignes, sous la limite de 250
   const CONCURRENT = 4; // Katana = 60 appels/minute, on reste sous la barre
 
@@ -191,8 +196,9 @@ async function fetchStockFor(variantIds: number[]): Promise<Map<number, { inStoc
     for (const data of results) {
       for (const row of (data.data ?? []) as Record<string, unknown>[]) {
         const vid = Number(row.variant_id);
-        const cur = out.get(vid) ?? { inStock: 0, expected: 0 };
+        const cur = out.get(vid) ?? { inStock: 0, committed: 0, expected: 0 };
         cur.inStock += Number(row.quantity_in_stock ?? 0);
+        cur.committed += Number(row.quantity_committed ?? 0);
         cur.expected += Number(row.quantity_expected ?? 0);
         out.set(vid, cur);
       }
@@ -271,25 +277,31 @@ export async function loadReassortDataForSupplier(
   const activeMaterials = new Set(all.filter((v) => byVariant.has(v.variantId)).map((v) => v.materialId));
   const variants = all.filter((v) => activeMaterials.has(v.materialId));
 
-  const missing = variants.filter((v) => !byVariant.has(v.variantId)).map((v) => v.variantId);
-  const [fetched, incoming] = await Promise.all([fetchStockFor(missing), loadIncoming(supplierId)]);
+  // Le stock est désormais TOUJOURS lu dans l'inventaire, plus reconstitué depuis le
+  // journal des mouvements. Le journal donne bien la quantité physique (contrôlée : 40
+  // références sur 40 identiques à Katana), mais il ignore la part RÉSERVÉE aux commandes
+  // en attente — et cette part est énorme : 2 369 pièces réservées sur 40 références
+  // Coloral, dont 39 avaient en réalité moins de 3 pièces libres. Compter le stock
+  // physique comme disponible faisait donc gravement sous-commander (Philippe, 08.08.2026).
+  const [stock, incoming] = await Promise.all([
+    fetchStockFor(variants.map((v) => v.variantId)),
+    loadIncoming(supplierId),
+  ]);
 
   const rows: KatanaReassortRow[] = variants.map((v) => {
     const s = byVariant.get(v.variantId);
-    let inStock: number;
-    if (s) {
-      let total = 0;
-      for (const { balance } of s.lastByLocation.values()) total += balance;
-      inStock = total;
-    } else {
-      inStock = fetched.get(v.variantId)?.inStock ?? 0;
-    }
+    const inv = stock.get(v.variantId);
+    const physical = inv?.inStock ?? 0;
+    const committed = inv?.committed ?? 0;
     return {
       sku: v.sku,
       name: v.materialName,
       supplier: supplierName,
-      inStock,
-      expected: incoming.get(v.variantId) ?? fetched.get(v.variantId)?.expected ?? 0,
+      // Ce qui est réellement libre de partir : le physique moins le réservé.
+      inStock: physical - committed,
+      physicalStock: physical,
+      committedStock: committed,
+      expected: incoming.get(v.variantId) ?? inv?.expected ?? 0,
       qtyShort: sumWindow(s, windows[0]),
       qtyMedium: sumWindow(s, windows[1]),
       qtyLong: sumWindow(s, windows[2]),
@@ -299,8 +311,8 @@ export async function loadReassortDataForSupplier(
   return {
     rows,
     movementsRead: read,
-    rebuiltFromLedger: variants.length - missing.length,
-    lookedUp: missing.length,
+    rebuiltFromLedger: 0,
+    lookedUp: variants.length,
     dormantSkipped: all.length - variants.length,
     windows,
   };
