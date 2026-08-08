@@ -218,9 +218,15 @@ async function fetchStockFor(
 // tout ce qui a plus de RESERVATION_MAX_AGE_DAYS jours est à éliminer.
 export const RESERVATION_MAX_AGE_DAYS = 50;
 
+// Une matière ne se vend jamais directement : ce qui se vend, c'est le bijou. Katana
+// bloque la matière en remontant la recette du produit commandé, mais ne date pas ce
+// blocage. On refait donc le trajet en sens inverse : commandes clientes récentes →
+// recette du bijou → matière. Le livre des recettes complet dépasse 30 000 lignes, on
+// ne le consulte donc QUE pour les matières dont le tiroir est déjà sous le seuil.
 let reservationsCache: { at: number; value: Map<number, number> } | null = null;
 
-async function loadRecentReservations(): Promise<Map<number, number>> {
+// Quantités commandées ces 50 derniers jours, par variante de PRODUIT (le bijou).
+async function loadRecentProductDemand(): Promise<Map<number, number>> {
   if (reservationsCache && Date.now() - reservationsCache.at < MOVEMENTS_TTL_MS) {
     return reservationsCache.value;
   }
@@ -238,6 +244,55 @@ async function loadRecentReservations(): Promise<Map<number, number>> {
   }
   reservationsCache = { at: Date.now(), value };
   return value;
+}
+
+// Réservations réelles et datées d'une matière : somme, sur les bijoux qui l'utilisent,
+// de ce qui a été commandé ces 50 derniers jours × la quantité prévue par la recette.
+// Le filtre par ingrédient est le seul que Katana honore sur les recettes (vérifié) —
+// le filtre par produit est ignoré, d'où ce sens de lecture.
+// Interroger la recette matière par matière est impossible : Katana n'autorise que
+// 60 appels par minute, et 471 matières demanderaient huit minutes. Le livre complet
+// tient en ~130 pages (~32 000 lignes), soit environ deux minutes, gardées 10 minutes
+// en mémoire et partagées par tous les fournisseurs.
+let recipesCache: { at: number; value: Map<number, { productVariantId: number; quantity: number }[]> } | null = null;
+
+async function loadRecipeIndex(): Promise<Map<number, { productVariantId: number; quantity: number }[]>> {
+  if (recipesCache && Date.now() - recipesCache.at < MOVEMENTS_TTL_MS) return recipesCache.value;
+
+  const rows = await getAllPages<{
+    ingredient_variant_id: number;
+    product_variant_id: number;
+    quantity: number | string;
+  }>("/v1/recipes");
+
+  const value = new Map<number, { productVariantId: number; quantity: number }[]>();
+  for (const r of rows) {
+    if (r.ingredient_variant_id == null) continue;
+    const list = value.get(r.ingredient_variant_id) ?? [];
+    list.push({ productVariantId: r.product_variant_id, quantity: Number(r.quantity ?? 0) });
+    value.set(r.ingredient_variant_id, list);
+  }
+  recipesCache = { at: Date.now(), value };
+  return value;
+}
+
+async function reservationsForMaterials(
+  materialVariantIds: number[],
+  productDemand: Map<number, number>
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  if (!materialVariantIds.length) return out;
+
+  const index = await loadRecipeIndex();
+  for (const id of materialVariantIds) {
+    let total = 0;
+    for (const { productVariantId, quantity } of index.get(id) ?? []) {
+      const ordered = productDemand.get(productVariantId) ?? 0;
+      if (ordered > 0) total += ordered * quantity;
+    }
+    out.set(id, total);
+  }
+  return out;
 }
 
 // ─── Commandes fournisseur en cours (pour ne pas commander deux fois) ──────────
@@ -319,19 +374,26 @@ export async function loadReassortDataForSupplier(
   // triplait la commande (1524 → 4631 pièces sur Coloral), ce qui n'a pas de sens quand
   // il reste de la marge ; en revanche sous 3 pièces, ce qui est promis est réellement
   // parti et le casier est vide pour la vente suivante.
-  const [stock, incoming, reservations] = await Promise.all([
+  const [stock, incoming, productDemand] = await Promise.all([
     fetchStockFor(variants.map((v) => v.variantId)),
     loadIncoming(supplierId),
-    loadRecentReservations(),
+    loadRecentProductDemand(),
   ]);
+
+  // Le trajet inverse ne se fait que là où il change quelque chose : les tiroirs déjà
+  // sous le seuil. Chez Coloral, 471 références sur 1728.
+  const lowStock = variants
+    .filter((v) => (stock.get(v.variantId)?.inStock ?? 0) < COMMITTED_THRESHOLD)
+    .map((v) => v.variantId);
+  const reservations = await reservationsForMaterials(lowStock, productDemand);
 
   const rows: KatanaReassortRow[] = variants.map((v) => {
     const s = byVariant.get(v.variantId);
     const inv = stock.get(v.variantId);
     const physical = inv?.inStock ?? 0;
     // On n'utilise PAS le « réservé » de l'inventaire : il agrège des commandes
-    // clients jamais closes depuis des années. Seules comptent celles des
-    // RESERVATION_MAX_AGE_DAYS derniers jours.
+    // clientes jamais closes depuis des années. Seules comptent celles des
+    // RESERVATION_MAX_AGE_DAYS derniers jours, retrouvées via la recette.
     const committed = reservations.get(v.variantId) ?? 0;
     const usable = physical < COMMITTED_THRESHOLD ? physical - committed : physical;
     return {
