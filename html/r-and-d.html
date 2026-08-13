@@ -821,6 +821,7 @@ function couleurTexteSurFond(hex) {
 
 let donnees = chargerDonneesLocal();
 let modalContexte = null;
+let ventesOriginalEdit = ''; // valeur du champ "ventes" à l'ouverture — sert à détecter une saisie manuelle
 let cloudOK = null;  // null = inconnu, true = synchro OK, false = pas dispo
 let saveTimer = null;
 
@@ -1350,7 +1351,10 @@ function rendreCalendrier() {
           // Jauge ventes : vraies ventes Shopify si dispo, sinon chiffre saisi à la main
           let ventesJaugeHtml = '';
           if (p.objectifCA && p.objectifCA > 0) {
-            const ventes = ventesReel !== null ? ventesReel : (+p.ventes || 0);
+            // Chiffre forcé à la main = prioritaire ; sinon chiffre Shopify réel ; sinon saisie.
+            const ventes = (p.ventesForce && +p.ventes > 0)
+              ? (+p.ventes)
+              : (ventesReel !== null ? ventesReel : (+p.ventes || 0));
             const pct = Math.min(100, Math.round((ventes / p.objectifCA) * 100));
             const cls = pct >= 90 ? 'jauge-vert' : pct >= 50 ? 'jauge-orange' : 'jauge-rouge';
             ventesJaugeHtml = `<div class="ventes-jauge"><div class="ventes-jauge-fill ${cls}" style="width:${pct}%;"></div></div>
@@ -1475,6 +1479,7 @@ function ouvrirModalAjout(date) {
   document.getElementById('produit-ca').value = '';
   const ventesField = document.getElementById('produit-ventes');
   if (ventesField) ventesField.value = '';
+  ventesOriginalEdit = '';
   document.getElementById('produit-notes').value = '';
   document.getElementById('produit-image').value = '';
   setImagePreview('');
@@ -1502,6 +1507,7 @@ function ouvrirModalEdit(id) {
   document.getElementById('produit-ca').value = p.objectifCA || '';
   const ventesFieldEdit = document.getElementById('produit-ventes');
   if (ventesFieldEdit) ventesFieldEdit.value = p.ventes || '';
+  ventesOriginalEdit = ventesFieldEdit ? ventesFieldEdit.value : '';
   document.getElementById('produit-notes').value = p.notes || '';
   document.getElementById('produit-image').value = p.image || '';
   setImagePreview(p.image || '');
@@ -1643,6 +1649,13 @@ function sauverProduit() {
     extraSemaine: !!modalContexte.extraSemaine,
     majAt: new Date().toISOString(),
   };
+  // Si le chiffre de vente a été modifié à la main dans ce panneau, on FORCE ce chiffre :
+  // il l'emporte alors sur le chiffre Shopify calculé automatiquement. Si le champ n'a pas
+  // été touché, on ne change pas le réglage existant.
+  const ventesFieldVal = document.getElementById('produit-ventes')?.value ?? '';
+  if (String(ventesFieldVal).trim() !== String(ventesOriginalEdit).trim()) {
+    data.ventesForce = (+data.ventes > 0);
+  }
   if (id) {
     const idx = donnees.produits.findIndex(p => p.id === id);
     if (idx >= 0) donnees.produits[idx] = { ...donnees.produits[idx], ...data };
@@ -2251,6 +2264,8 @@ function construireRecap(produits, label) {
   // « Fait » = vraies ventes Shopify (total avec taxes) de la semaine sélectionnée si dispo,
   // sinon le chiffre saisi à la main. Même source que les badges sur les cartes.
   const faitDe = (p) => {
+    // Chiffre forcé à la main = prioritaire sur le chiffre Shopify auto.
+    if (p.ventesForce && +p.ventes > 0) return { v: Math.round(+p.ventes), qty: 0, shopify: false };
     const reel = ventesReelles[p.id];
     const reelTotal = reel ? Number(reel.total) || 0 : 0;
     if (reelTotal > 0) return { v: Math.round(reelTotal), qty: Number(reel.qty) || 0, shopify: true };
