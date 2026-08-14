@@ -45,21 +45,66 @@ export async function GET(req: NextRequest) {
 
   const ecritures = [];
 
+  // Controle de couverture : une vente encaissee ne doit JAMAIS etre ecartee
+  // en silence. C'est ce qui est arrive au compte "fdv" (foires) de janvier a
+  // juillet 2026 : 56 ventes, 11'491.00 CHF, jamais enregistrees.
+  const nonAttribuees = new Map<string, { nb: number; montant: number }>();
+  let brutLu = 0;
+  let brutRepris = 0;
+
   for (let i = 0; i < items.length; i++) {
     const t        = items[i];
     const email    = String(t.user ?? "").toLowerCase();
     const boutique = SUMUP_COMPTES[email];
-    if (!boutique) continue;
 
     const brut  = Number(t.amount ?? 0);
+    brutLu += brut;
+
+    if (!boutique) {
+      const cle = email || "(sans compte SumUp)";
+      const agg = nonAttribuees.get(cle) ?? { nb: 0, montant: 0 };
+      agg.nb += 1;
+      agg.montant = Math.round((agg.montant + brut) * 100) / 100;
+      nonAttribuees.set(cle, agg);
+      continue;
+    }
+
     const frais = fees[i] ?? 0;
     const date  = String(t.timestamp ?? "").slice(0, 10);
     const lib   = `SumUp ${boutique.lieu}`;
     const { ht, tva } = calculTva(brut);
 
     ecritures.push(...formatEcriture(date, lib, brut, boutique.compte, frais, "CH", COMPTES.PASSAGE_SUMUP));
+    brutRepris += brut;
     void ht; void tva;
   }
 
-  return NextResponse.json({ ecritures, count: items.length, fees_fetched: fees.filter(f => f > 0).length });
+  brutLu = Math.round(brutLu * 100) / 100;
+  brutRepris = Math.round(brutRepris * 100) / 100;
+
+  const manquants = [...nonAttribuees.entries()].map(([compte, v]) => ({
+    compte,
+    ventes: v.nb,
+    montant: v.montant,
+  }));
+
+  return NextResponse.json({
+    ecritures,
+    count: items.length,
+    fees_fetched: fees.filter(f => f > 0).length,
+    // Couverture : a lire AVANT de passer les ecritures.
+    couverture: {
+      ventes_lues: items.length,
+      ventes_reprises: items.length - manquants.reduce((s, m) => s + m.ventes, 0),
+      montant_lu: brutLu,
+      montant_repris: brutRepris,
+      pourcentage: brutLu === 0 ? 100 : Math.round((brutRepris / brutLu) * 10000) / 100,
+      complet: manquants.length === 0,
+      non_attribuees: manquants,
+      avertissement: manquants.length
+        ? "Des ventes encaissees n'ont pas de compte comptable : elles ne sont PAS dans le fichier. "
+          + "Ajoute la correspondance avant de passer les ecritures, ne saisis rien a la main."
+        : null,
+    },
+  });
 }

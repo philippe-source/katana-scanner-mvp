@@ -131,8 +131,13 @@ export const SUMUP_COMPTES: Record<string, { lieu: string; compte: string }> = {
   "manor@yourmood.net":    { lieu: "Stand-foire",  compte: "320009" },
   "martigny@yourmood.net": { lieu: "Martigny",     compte: "320003" },
   "zurich@yourmood.net":   { lieu: "Zurich",       compte: "320005" },
-  "fribourg@yourmood.net": { lieu: "Fribourg",     compte: "320006" },
+  // 320006 = "Ventes a l'etranger" et NON Fribourg : Fribourg est 320007.
+  "fribourg@yourmood.net": { lieu: "Fribourg",     compte: "320007" },
   "zermatt@yourmood.net":  { lieu: "Zermatt",      compte: "320008" },
+  // Compte des foires (320009 = "Ventes caisse evenements"). Ligne absente
+  // jusqu'au 14.08.2026 : 56 ventes (11'491.00 CHF) de janvier a juillet 2026
+  // avaient disparu en silence, faute de cette correspondance.
+  "fdv@yourmood.net":      { lieu: "Stand-foire",  compte: "320009" },
 };
 
 export const PAYPAL_COMPTES: Record<string, string> = {

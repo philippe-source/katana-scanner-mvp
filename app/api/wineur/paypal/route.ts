@@ -101,13 +101,22 @@ export async function GET(req: NextRequest) {
     const { nom, email, country, isCH } = parsePayerInfo(payer);
 
     // ═══════════════════════════════════════════════════════════════
-    // T0200 — Conversion de devise (vente EUR/USD → CHF)
+    // T0200 — Conversion de devise standard
+    // T0201 — Conversion de devise initiée par l'utilisateur
+    //   ATTENTION : T0201 n'est PAS un remboursement client. Chez PayPal,
+    //   T0200 = "General currency conversion" et T0201 = "User initiated
+    //   currency conversion". T0201 était traité plus bas comme un
+    //   remboursement : cela sortait l'argent du compte PayPal au lieu de
+    //   l'y faire entrer, ET diminuait le compte de ventes 320001.
+    //   Constaté sur janvier–juillet 2026 : 43 conversions (23 CHF + 20 EUR)
+    //   ont ainsi réduit les ventes de 13'686.87 CHF à tort.
+    //   Les vrais remboursements client sont T1107 (et T1106/T1110).
     // Enregistre le débit du compte devise ; l'écart de change est absorbé
     // par le compte 670004 (différence de change — son vrai usage).
     // (La recharge du solde PayPal par la carte (ex-T0700) est désormais
     //  portée par l'import Visa, elle ne transite plus par 670004.)
     // ═══════════════════════════════════════════════════════════════
-    if (code === "T0200") {
+    if (code === "T0200" || code === "T0201") {
       // montant = contre-valeur CHF (ESTV), montant_orig = montant en devise
       // DIFF_CHANGE (670004) absorbe l'écart entre le taux ESTV et le taux réel PayPal
       const lib        = `PayPal conversion ${devise}→CHF`;
@@ -122,10 +131,11 @@ export async function GET(req: NextRequest) {
     // voir IGNORE_CODES : l'écriture est portée en entier par l'import Visa.
 
     // ═══════════════════════════════════════════════════════════════
-    // T0201 — Remboursement partiel client étranger (EUR négatif)
-    // T1107 — Remboursement client CH (CHF négatif)
+    // T1107 — Remboursement client (initié par le marchand)
+    //   T0201 a été retiré d'ici : c'est une conversion de devise, pas un
+    //   remboursement (voir le bloc des conversions ci-dessus).
     // ═══════════════════════════════════════════════════════════════
-    if (code === "T0201" || code === "T1107") {
+    if (code === "T1107") {
       const brut = Math.abs(rawAmt);
       const lib  = `Rembt PayPal${nom !== "PayPal" ? ": " + nom : ""}`;
       const isRefundCH = code === "T1107" || isCH;
