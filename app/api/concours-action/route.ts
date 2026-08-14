@@ -2,12 +2,14 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 
-const CODE = "M00d2025*";
+function okCode(v: unknown) {
+  return String(v || "").trim().toLowerCase().replace(/\*+$/, "") === "m00d2025";
+}
 
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { body = {}; }
-  if (String(body.code || "") !== CODE) return NextResponse.json({ error: "code" }, { status: 401 });
+  if (!okCode(body.code)) return NextResponse.json({ error: "code" }, { status: 401 });
 
   const id = String(body.id || "");
   const action = String(body.action || "");
