@@ -277,8 +277,8 @@
   function renderVitrine(items){
     cards.innerHTML='';$('emptyvit').hidden=items.length>0;
     items.forEach(function(it){var w=document.createElement('div');w.className='entry';
-      var thumb=it.image?('<div class="thumb" style="background-image:url('+CSS.escape?it.image:it.image+')"></div>'):'<div class="thumb empty">✨</div>';
-      w.innerHTML=thumb+'<div class="body"><p class="name">'+esc(it.projet)+'</p><p class="by">par '+esc(it.nom||'')+'</p>'+
+      w.innerHTML='<div class="thumb'+(it.image?'':' empty')+'">'+(it.image?'':'✨')+'</div>'+
+        '<div class="body"><p class="name">'+esc(it.projet)+'</p><p class="by">par '+esc(it.nom||'')+'</p>'+
         '<button class="heart"><span>'+heartSvg()+'</span><span class="n">'+(it.votes||0)+'</span></button></div>';
       var th=w.querySelector('.thumb');if(it.image){th.style.backgroundImage='url("'+it.image+'")';}
       var h=w.querySelector('.heart'),n=w.querySelector('.n');
