@@ -131,7 +131,7 @@
     <div class="podium">
       <div class="prize first"><span class="medal">🥇</span><div class="rank">1re place</div>
         <div class="win">Ton addon fabriqué pour de vrai</div>
-        <div class="sub">Édité par mood, offert à sa créatrice, et sa collection mise en ligne — elle rejoint notre collection d'automne. Et si plusieurs pépites cartonnent, elles seront éditées elles aussi.</div></div>
+        <div class="sub">Édité par mood. Offert à sa ou son créateur. Son addon sera mis en ligne et rejoindra notre collection d'automne 2026.</div></div>
       <div class="prize"><span class="medal">🥈</span><div class="rank">2e place</div>
         <div class="win">Bon de 100.–</div><div class="sub">Pour tes prochaines compos.</div></div>
       <div class="prize"><span class="medal">🥉</span><div class="rank">3e place</div>
@@ -166,7 +166,7 @@
     <div id="senderr" class="codeerr" hidden>Il manque ton nom, le nom du projet, ton adresse mail — ou ta fiche/description.</div>
     <button class="cta" id="send">Envoyer ma pépite au concours</button>
     <div id="sent" class="sent" hidden></div>
-    <p class="after">Rien n'apparaît dans la Vitrine sans le feu vert de mood. 🍂</p>
+    <p class="after">Une fois envoyée, notre designer met ta bague en visualisation 3D, puis la publie dans la Vitrine. Rien n'apparaît sans le feu vert de mood. 🍂</p>
   </section>
 
   <!-- EXEMPLES -->
@@ -243,12 +243,20 @@
   [].forEach.call(document.querySelectorAll('#view-exemples .ex img'),function(img){img.onclick=function(){bigify(img.src);};});
 
   // --- outils fichiers : réduit puis convertit en donnée intégrable ---
-  function shrink(file,maxW){return new Promise(function(res){
+  // photo iPhone (HEIC) → convertie en photo normale (chargée seulement si besoin)
+  function loadHeic(){return new Promise(function(res,rej){if(window.heic2any)return res();
+    var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+    s.onload=function(){res();};s.onerror=function(){rej();};document.head.appendChild(s);});}
+  function preconv(file){var isHeic=/heic|heif/i.test(file.type||'')||/\.(heic|heif)$/i.test(file.name||'');
+    if(!isHeic)return Promise.resolve(file);
+    return loadHeic().then(function(){return window.heic2any({blob:file,toType:'image/jpeg',quality:0.85});})
+      .then(function(b){return b;}).catch(function(){return file;});}
+  function shrink(file,maxW){return preconv(file).then(function(f){return new Promise(function(res){
     var r=new FileReader();r.onload=function(){var img=new Image();img.onload=function(){
       var w=img.width,h=img.height;if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
       var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
       try{res(c.toDataURL('image/jpeg',0.82));}catch(e){res(r.result);}
-    };img.onerror=function(){res(r.result);};img.src=r.result;};r.readAsDataURL(file);});}
+    };img.onerror=function(){res(r.result);};img.src=r.result;};r.readAsDataURL(f);});});}
   async function filesToData(list,maxW,cap){var out=[];var n=Math.min(list.length,cap||99);
     for(var i=0;i<n;i++){out.push(await shrink(list[i],maxW||1400));}return out;}
 
@@ -270,7 +278,7 @@
       var refs=hasRefs?(await filesToData($('in-refs').files,1300,6)):[];
       var r=await fetch('/api/concours-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:nom,projet:projet,mail:mail,desc:desc,fiche:fiche,refs:refs})});
       if(!r.ok)throw new Error();
-      send.hidden=true;var s=$('sent');s.innerHTML='✓ Merci '+nom+' ! Ta pépite « '+projet+' » est partie. mood la regarde, l\'approuve (et l\'habille en 3D), puis elle rejoint la Vitrine. 🍂';s.hidden=false;
+      send.hidden=true;var s=$('sent');s.innerHTML='✓ Merci '+nom+' ! Ta pépite « '+projet+' » est bien partie. Notre designer va prendre soin de la mettre en visualisation 3D, puis la publiera dans la Vitrine. 🍂';s.hidden=false;
       s.scrollIntoView({behavior:'smooth',block:'center'});
     }catch(e){send.disabled=false;send.textContent='Envoyer ma pépite au concours';$('senderr').textContent='Oups, l\'envoi n\'a pas abouti. Réessaie dans un instant.';$('senderr').hidden=false;}
   };
