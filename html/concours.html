@@ -292,7 +292,7 @@
       w.innerHTML='<div class="thumb'+(it.hasImage?'':' empty')+'">'+(it.hasImage?'':'✨')+'</div>'+
         '<div class="body"><p class="name">'+esc(it.projet)+'</p><p class="by">par '+esc(it.nom||'')+'</p>'+
         '<button class="heart"><span>'+heartSvg()+'</span><span class="n">'+(it.votes||0)+'</span></button></div>';
-      var th=w.querySelector('.thumb');if(it.hasImage){th.style.backgroundImage='url("/api/concours-image?id='+it.id+'")';}
+      var th=w.querySelector('.thumb');if(it.hasImage){th.style.backgroundImage='url("/api/concours-image?id='+it.id+'&v='+encodeURIComponent(it.v||'')+'")';}
       var h=w.querySelector('.heart'),n=w.querySelector('.n');
       if(voted[it.id]){h.setAttribute('aria-pressed','true');}
       h.onclick=function(){if(voted[it.id])return;voted[it.id]=1;localStorage.setItem('mood_concours_votes',JSON.stringify(voted));

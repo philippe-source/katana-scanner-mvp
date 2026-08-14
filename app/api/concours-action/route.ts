@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     if (action === "approve") {
       rec.state = "approved";
       if (Array.isArray(body.images)) rec.moodImages = (body.images as unknown[]).slice(0, 6);
+      rec.updatedAt = new Date().toISOString();
       await kv.set("concours:" + id, rec);
     } else if (action === "reject") {
       rec.state = "rejected";
