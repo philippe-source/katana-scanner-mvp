@@ -201,7 +201,11 @@
   <div class="modal" id="modal"><div class="modalcard">
     <div class="mh"><div><p class="mn" id="mn"></p><p class="mby" id="mby"></p></div><button class="mclose" id="mclose" aria-label="Fermer">✕</button></div>
     <div id="mdescwrap" hidden><div class="msec">Sa description</div><div class="mdesc" id="mdesc"></div></div>
-    <div id="mfichewrap" hidden><div class="msec">La fiche envoyée</div><img class="mfiche" id="mfiche" alt="fiche envoyée"></div>
+    <div id="mfichewrap" hidden><div class="msec">La fiche envoyée</div>
+      <img class="mfiche" id="mfiche" alt="fiche envoyée">
+      <div id="mfichenote" class="after" hidden>Aperçu impossible sur ordinateur (photo au format iPhone). Clique pour l'ouvrir 👇</div>
+      <a id="mfichedl" class="btn" download="fiche-client" style="margin-top:.6rem" target="_blank" rel="noopener">⬇ Télécharger / ouvrir la fiche</a>
+    </div>
     <div id="mrefswrap" hidden><div class="msec">Ses images de référence</div><div class="refgrid" id="mrefs"></div></div>
     <div id="mmoodwrap" hidden>
       <div class="msec">Ton image pour la Vitrine</div>
@@ -301,7 +305,10 @@
     modalProject=p;modalMood=null;
     $('mn').textContent=p.projet;$('mby').textContent='par '+(p.nom||'')+(p.mail?(' · '+p.mail):'');
     $('mdescwrap').hidden=!p.desc;if(p.desc)$('mdesc').textContent=p.desc;
-    $('mfichewrap').hidden=!p.fiche;if(p.fiche){$('mfiche').src=p.fiche;$('mfiche').onclick=function(){bigify(p.fiche);};}
+    $('mfichewrap').hidden=!p.fiche;
+    if(p.fiche){var im=$('mfiche');im.style.display='';$('mfichenote').hidden=true;
+      im.onerror=function(){im.style.display='none';$('mfichenote').hidden=false;};
+      im.onclick=function(){bigify(p.fiche);};im.src=p.fiche;$('mfichedl').href=p.fiche;}
     var refs=(p.refs||[]);$('mrefswrap').hidden=refs.length===0;var mr=$('mrefs');mr.innerHTML='';
     refs.forEach(function(u){var d=document.createElement('div');d.className='ref';d.style.backgroundImage='url("'+u+'")';d.onclick=function(){bigify(u);};mr.appendChild(d);});
     $('mmoodwrap').hidden=false;
