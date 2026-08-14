@@ -328,14 +328,19 @@
     $('mstatus').textContent=p.state==='approved'?'Déjà dans la Vitrine — tu peux changer son image ci-dessus.':'';
   }
   $('mmoodinput').onchange=async function(){if(!this.files.length)return;modalMood=(await filesToData(this.files,1500,1))[0];setMoodPrev(modalMood);};
-  $('mpublish').onclick=async function(){if(!modalProject)return;
+  $('mpublish').onclick=async function(){
+    $('mstatus').textContent='① clic reçu…';
+    if(!modalProject){$('mstatus').textContent='② le projet charge encore — réessaie dans 1 seconde.';return;}
     var img=modalMood||((modalProject.moodImages&&modalProject.moodImages.length)?modalProject.moodImages[0]:null);
-    if(!img){$('mstatus').textContent="👆 Choisis d'abord l'image de la Vitrine (ta version 3D) — c'est elle qui s'affichera.";return;}
+    if(!img){$('mstatus').textContent="③ 👆 choisis d'abord l'image de la Vitrine (ta version 3D).";return;}
     var b=$('mpublish');b.disabled=true;var old=b.textContent;b.textContent='…';
+    $('mstatus').textContent='④ envoi en cours…';
     var payload={code:CODE_HELD,id:modalProject.id,action:'approve',images:[img]};
     try{var r=await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      if(!r.ok)throw new Error();modal.classList.remove('on');loadQueue();loadVitrine();}
-    catch(e){b.disabled=false;b.textContent=old;$('mstatus').textContent='Échec — réessaie.';}};
+      var t=await r.text();
+      if(!r.ok){b.disabled=false;b.textContent=old;$('mstatus').textContent='⑤ refus du coffre ('+r.status+') : '+t.slice(0,80);return;}
+      $('mstatus').textContent='✓ publié !';modal.classList.remove('on');loadQueue();loadVitrine();}
+    catch(e){b.disabled=false;b.textContent=old;$('mstatus').textContent='⑥ erreur réseau : '+(e&&e.message||'');}};
   $('mreject').onclick=async function(){if(!modalProject)return;if(!confirm('Écarter cette création ?'))return;
     await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:CODE_HELD,id:modalProject.id,action:'reject'})});
     modal.classList.remove('on');loadQueue();loadVitrine();};
