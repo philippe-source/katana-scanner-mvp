@@ -289,10 +289,10 @@
   function renderVitrine(items){
     cards.innerHTML='';$('emptyvit').hidden=items.length>0;
     items.forEach(function(it){var w=document.createElement('div');w.className='entry';
-      w.innerHTML='<div class="thumb'+(it.image?'':' empty')+'">'+(it.image?'':'✨')+'</div>'+
+      w.innerHTML='<div class="thumb'+(it.hasImage?'':' empty')+'">'+(it.hasImage?'':'✨')+'</div>'+
         '<div class="body"><p class="name">'+esc(it.projet)+'</p><p class="by">par '+esc(it.nom||'')+'</p>'+
         '<button class="heart"><span>'+heartSvg()+'</span><span class="n">'+(it.votes||0)+'</span></button></div>';
-      var th=w.querySelector('.thumb');if(it.image){th.style.backgroundImage='url("'+it.image+'")';}
+      var th=w.querySelector('.thumb');if(it.hasImage){th.style.backgroundImage='url("/api/concours-image?id='+it.id+'")';}
       var h=w.querySelector('.heart'),n=w.querySelector('.n');
       if(voted[it.id]){h.setAttribute('aria-pressed','true');}
       h.onclick=function(){if(voted[it.id])return;voted[it.id]=1;localStorage.setItem('mood_concours_votes',JSON.stringify(voted));
@@ -309,9 +309,13 @@
   function setMoodPrev(url){var pv=$('mmoodprev');
     if(url){pv.className='moodprev';pv.style.backgroundImage='url("'+url+'")';pv.textContent='';pv.style.cursor='zoom-in';pv.onclick=function(){bigify(url);};}
     else{pv.className='moodprev empty';pv.style.backgroundImage='';pv.textContent="Aucune image pour l'instant";pv.onclick=null;}}
-  function openModal(p){
-    modalProject=p;modalMood=null;
-    $('mn').textContent=p.projet;$('mby').textContent='par '+(p.nom||'')+(p.mail?(' · '+p.mail):'');
+  async function openModal(pMeta){
+    modal.classList.add('on');modalProject=null;modalMood=null;
+    $('mn').textContent=pMeta.projet;$('mby').textContent='par '+(pMeta.nom||'')+(pMeta.mail?(' · '+pMeta.mail):'');
+    $('mdescwrap').hidden=true;$('mfichewrap').hidden=true;$('mrefswrap').hidden=true;$('mmoodwrap').hidden=false;setMoodPrev(null);$('mstatus').textContent='Chargement…';
+    var p=await fetch('/api/concours-detail',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:CODE_HELD,id:pMeta.id})}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
+    if(!p){$('mstatus').textContent='Impossible de charger le détail — réessaie.';return;}
+    modalProject=p;
     $('mdescwrap').hidden=!p.desc;if(p.desc)$('mdesc').textContent=p.desc;
     $('mfichewrap').hidden=!p.fiche;
     if(p.fiche){var im=$('mfiche');im.style.display='';$('mfichenote').hidden=true;
@@ -319,11 +323,9 @@
       im.onclick=function(){bigify(p.fiche);};im.src=p.fiche;$('mfichedl').href=p.fiche;}
     var refs=(p.refs||[]);$('mrefswrap').hidden=refs.length===0;var mr=$('mrefs');mr.innerHTML='';
     refs.forEach(function(u){var d=document.createElement('div');d.className='ref';d.style.backgroundImage='url("'+u+'")';d.onclick=function(){bigify(u);};mr.appendChild(d);});
-    $('mmoodwrap').hidden=false;
     setMoodPrev((p.moodImages&&p.moodImages.length)?p.moodImages[0]:null);
     $('mpublish').textContent=p.state==='approved'?'Mettre à jour la Vitrine':'Publier dans la Vitrine';
     $('mstatus').textContent=p.state==='approved'?'Déjà dans la Vitrine — tu peux changer son image ci-dessus.':'';
-    modal.classList.add('on');
   }
   $('mmoodinput').onchange=async function(){if(!this.files.length)return;modalMood=(await filesToData(this.files,1500,1))[0];setMoodPrev(modalMood);};
   $('mpublish').onclick=async function(){if(!modalProject)return;
@@ -348,7 +350,7 @@
       var el=document.createElement('div');el.className='qcard';
       var st=p.state==='approved';
       el.innerHTML='<div class="qh"><div><p class="qn">'+esc(p.projet)+'</p><span class="qby">par '+esc(p.nom)+' · '+esc(p.mail)+'</span></div><span class="badge'+(st?' ok':'')+'">'+(st?'publiée':'en attente')+'</span></div>'+
-        '<div class="qimgs">'+(p.fiche?'📎 fiche jointe':'📝 description')+(p.refs&&p.refs.length?(' · '+p.refs.length+' image(s) de réf.'):'')+((p.moodImages&&p.moodImages.length)?' · 🖼️ image Vitrine posée':'')+'</div>'+
+        '<div class="qimgs">'+(p.hasFiche?'📎 fiche jointe':'📝 description')+(p.refsCount?(' · '+p.refsCount+' image(s) de réf.'):'')+(p.hasMood?' · 🖼️ image Vitrine posée':'')+'</div>'+
         '<div class="qopen">👁️ Ouvrir pour tout voir, poser l\'image Vitrine et publier</div>';
       el.onclick=function(){openModal(p);};
       q.appendChild(el);
