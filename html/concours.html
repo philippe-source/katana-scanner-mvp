@@ -101,7 +101,12 @@
   .mfiche{width:100%;border:1px solid var(--card-edge);border-radius:10px;background:#fff;display:block}
   .mdesc{font-size:.9rem;color:var(--ink);background:var(--paper);border-radius:10px;padding:.7rem .9rem;white-space:pre-wrap}
   .refgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
-  .ref{aspect-ratio:1;border-radius:10px;border:1px solid var(--card-edge);background:#efe7d8 center/cover no-repeat}
+  .ref{aspect-ratio:1;border-radius:10px;border:1px solid var(--card-edge);background:#efe7d8 center/cover no-repeat;cursor:zoom-in}
+  .mfiche{cursor:zoom-in}.ex img{cursor:zoom-in}
+  .moodprev{border-radius:12px;border:1px solid var(--card-edge);background:#efe7d8 center/cover no-repeat;height:150px;margin-bottom:.5rem}
+  .moodprev.empty{display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:.8rem;font-style:italic}
+  .lightbox{position:fixed;inset:0;background:rgba(10,8,6,.88);display:none;align-items:center;justify-content:center;padding:20px;z-index:80;cursor:zoom-out}
+  .lightbox.on{display:flex}.lightbox img{max-width:96vw;max-height:92vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   footer{margin-top:2.4rem;color:var(--ink-soft);font-size:.75rem;text-align:center}footer b{color:var(--ink)}
 </style></head>
 <body><div class="stage"><div class="wrap">
@@ -198,7 +203,15 @@
     <div id="mdescwrap" hidden><div class="msec">Sa description</div><div class="mdesc" id="mdesc"></div></div>
     <div id="mfichewrap" hidden><div class="msec">La fiche envoyée</div><img class="mfiche" id="mfiche" alt="fiche envoyée"></div>
     <div id="mrefswrap" hidden><div class="msec">Ses images de référence</div><div class="refgrid" id="mrefs"></div></div>
+    <div id="mmoodwrap" hidden>
+      <div class="msec">Ton image pour la Vitrine</div>
+      <div class="moodprev empty" id="mmoodprev">Aucune image pour l'instant</div>
+      <label class="drop"><span class="ic">🖼️</span><div class="t">Choisir / changer l'image Vitrine<small>C'est l'image que tu réalises d'après le croquis — celle qui sera publiée.</small></div><input type="file" accept="image/*" hidden id="mmoodinput"></label>
+      <div class="qact" style="margin-top:1rem"><button class="ok" id="mpublish">Publier dans la Vitrine</button><button class="no" id="mreject">Écarter</button></div>
+      <div id="mstatus" class="after"></div>
+    </div>
   </div></div>
+  <div class="lightbox" id="lightbox"><img id="lightimg" alt="agrandissement"></div>
 
   <footer><b>mood</b> — Le Grand Concours d'automne 🍂💎</footer>
 </div></div>
@@ -212,11 +225,18 @@
   tabs.forEach(function(t){t.onclick=function(){
     tabs.forEach(function(x){x.setAttribute('aria-selected',x===t);});
     ['vitrine','creer','exemples','valid'].forEach(function(v){$('view-'+v).classList.toggle('on',t.dataset.v===v);});
+    if(t.dataset.v==='vitrine')loadVitrine();
     window.scrollTo({top:0,behavior:'smooth'});
   };});
 
   // --- fiche à imprimer ---
   $('printbtn').href=$('fiche').src;
+
+  // --- agrandissement d'image (clic → plein écran) ---
+  var lightbox=$('lightbox');
+  function bigify(src){$('lightimg').src=src;lightbox.classList.add('on');}
+  lightbox.onclick=function(){lightbox.classList.remove('on');};
+  [].forEach.call(document.querySelectorAll('#view-exemples .ex img'),function(img){img.onclick=function(){bigify(img.src);};});
 
   // --- outils fichiers : réduit puis convertit en donnée intégrable ---
   function shrink(file,maxW){return new Promise(function(res){
@@ -273,15 +293,34 @@
   loadVitrine();
 
   // --- MODALE projet ---
-  var modal=$('modal');
+  var modal=$('modal');var modalProject=null,modalMood=null;
+  function setMoodPrev(url){var pv=$('mmoodprev');
+    if(url){pv.className='moodprev';pv.style.backgroundImage='url("'+url+'")';pv.textContent='';pv.style.cursor='zoom-in';pv.onclick=function(){bigify(url);};}
+    else{pv.className='moodprev empty';pv.style.backgroundImage='';pv.textContent="Aucune image pour l'instant";pv.onclick=null;}}
   function openModal(p){
+    modalProject=p;modalMood=null;
     $('mn').textContent=p.projet;$('mby').textContent='par '+(p.nom||'')+(p.mail?(' · '+p.mail):'');
     $('mdescwrap').hidden=!p.desc;if(p.desc)$('mdesc').textContent=p.desc;
-    $('mfichewrap').hidden=!p.fiche;if(p.fiche)$('mfiche').src=p.fiche;
+    $('mfichewrap').hidden=!p.fiche;if(p.fiche){$('mfiche').src=p.fiche;$('mfiche').onclick=function(){bigify(p.fiche);};}
     var refs=(p.refs||[]);$('mrefswrap').hidden=refs.length===0;var mr=$('mrefs');mr.innerHTML='';
-    refs.forEach(function(u){var d=document.createElement('div');d.className='ref';d.style.backgroundImage='url("'+u+'")';mr.appendChild(d);});
+    refs.forEach(function(u){var d=document.createElement('div');d.className='ref';d.style.backgroundImage='url("'+u+'")';d.onclick=function(){bigify(u);};mr.appendChild(d);});
+    $('mmoodwrap').hidden=false;
+    setMoodPrev((p.moodImages&&p.moodImages.length)?p.moodImages[0]:null);
+    $('mpublish').textContent=p.state==='approved'?'Mettre à jour la Vitrine':'Publier dans la Vitrine';
+    $('mstatus').textContent=p.state==='approved'?'Déjà dans la Vitrine — tu peux changer son image ci-dessus.':'';
     modal.classList.add('on');
   }
+  $('mmoodinput').onchange=async function(){if(!this.files.length)return;modalMood=(await filesToData(this.files,1500,1))[0];setMoodPrev(modalMood);};
+  $('mpublish').onclick=async function(){if(!modalProject)return;
+    var b=$('mpublish');b.disabled=true;var old=b.textContent;b.textContent='…';
+    var img=modalMood||((modalProject.moodImages&&modalProject.moodImages.length)?modalProject.moodImages[0]:null);
+    var payload={code:CODE_HELD,id:modalProject.id,action:'approve'};if(img)payload.images=[img];
+    try{var r=await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(!r.ok)throw new Error();modal.classList.remove('on');loadQueue();loadVitrine();}
+    catch(e){b.disabled=false;b.textContent=old;$('mstatus').textContent='Échec — réessaie.';}};
+  $('mreject').onclick=async function(){if(!modalProject)return;if(!confirm('Écarter cette création ?'))return;
+    await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:CODE_HELD,id:modalProject.id,action:'reject'})});
+    modal.classList.remove('on');loadQueue();loadVitrine();};
   $('mclose').onclick=function(){modal.classList.remove('on');};
   modal.addEventListener('click',function(e){if(e.target===modal)modal.classList.remove('on');});
 
@@ -294,20 +333,9 @@
       var el=document.createElement('div');el.className='qcard';
       var st=p.state==='approved';
       el.innerHTML='<div class="qh"><div><p class="qn">'+esc(p.projet)+'</p><span class="qby">par '+esc(p.nom)+' · '+esc(p.mail)+'</span></div><span class="badge'+(st?' ok':'')+'">'+(st?'publiée':'en attente')+'</span></div>'+
-        '<div class="qimgs">'+(p.fiche?'📎 fiche jointe':'📝 description')+(p.refs&&p.refs.length?(' · '+p.refs.length+' image(s) de réf.'):'')+' — '+((p.moodImages&&p.moodImages.length)?(p.moodImages.length+' image(s) de toi'):'aucune image de toi')+'</div>'+
-        '<div class="qopen">👁️ Cliquer pour voir la fiche & les images</div>'+
-        (st?'':'<div class="qact"><label>🖼️ Ajouter mes images<input type="file" accept="image/*" multiple hidden></label><button class="ok">✓ Valider &amp; publier</button><button class="no">Écarter</button></div>');
+        '<div class="qimgs">'+(p.fiche?'📎 fiche jointe':'📝 description')+(p.refs&&p.refs.length?(' · '+p.refs.length+' image(s) de réf.'):'')+((p.moodImages&&p.moodImages.length)?' · 🖼️ image Vitrine posée':'')+'</div>'+
+        '<div class="qopen">👁️ Ouvrir pour tout voir, poser l\'image Vitrine et publier</div>';
       el.onclick=function(){openModal(p);};
-      var act=el.querySelector('.qact');if(act)act.addEventListener('click',function(e){e.stopPropagation();});
-      var moodImgs=[];
-      var inp=el.querySelector('input');
-      if(inp)inp.addEventListener('change',async function(){if(!inp.files.length)return;moodImgs=await filesToData(inp.files,1400,6);
-        el.querySelector('.qimgs').textContent='🖼️ '+moodImgs.length+' image(s) prêtes (ta version 3D)';});
-      var ok=el.querySelector('.ok');if(ok)ok.onclick=async function(){ok.textContent='…';ok.disabled=true;
-        var r=await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:CODE_HELD,id:p.id,action:'approve',images:moodImgs})});
-        if(r.ok){loadQueue();loadVitrine();}else{ok.textContent='✓ Valider & publier';ok.disabled=false;}};
-      var no=el.querySelector('.no');if(no)no.onclick=async function(){if(!confirm('Écarter cette création ?'))return;
-        await fetch('/api/concours-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:CODE_HELD,id:p.id,action:'reject'})});loadQueue();};
       q.appendChild(el);
     });
   }
