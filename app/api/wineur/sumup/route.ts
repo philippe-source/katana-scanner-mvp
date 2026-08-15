@@ -41,8 +41,20 @@ export async function GET(req: NextRequest) {
     };
     brutes.push(...(page.items ?? []));
     pages += 1;
+    // Le lien "next" de SumUp peut arriver sous trois formes : adresse
+    // complete, chemin commencant par "/", ou simple suite de parametres
+    // ("limit=500&oldest_ref=..."). Les recoller sans separateur donnait une
+    // adresse invalide et l'import rendait zero ecriture.
     const next = (page.links ?? []).find(l => (l.rel ?? "").toLowerCase() === "next")?.href;
-    url = next ? (next.startsWith("http") ? next : `https://api.sumup.com${next}`) : null;
+    if (!next) {
+      url = null;
+    } else if (next.startsWith("http")) {
+      url = next;
+    } else if (next.startsWith("/")) {
+      url = `https://api.sumup.com${next}`;
+    } else {
+      url = `https://api.sumup.com/v0.1/me/transactions/history?${next.replace(/^\?/, "")}`;
+    }
   }
 
   const reussies = brutes.filter((t) => t.status === "SUCCESSFUL" && t.type === "PAYMENT");
