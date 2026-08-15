@@ -125,20 +125,38 @@ export async function POST(req: NextRequest) {
       let montantStr = "";
       let j = i + 2;
 
-      // Collecter la description jusqu'au premier montant positif (nombre sans signe -)
-      while (j < strings.length && j < i + 10) {
+      // Un achat en devise etrangere porte DEUX montants sur la ligne :
+      //   ... SHOPIFY DUBLIN IRL      USD  3'876.92      3'196.25
+      // le premier est en devise, le second est le montant reellement debite
+      // en francs. Prendre le premier revenait a comptabiliser des dollars
+      // comme des francs : surevaluation d'environ 20 % sur chaque achat
+      // etranger (12'388.91 CHF constates sur janvier-juillet 2026).
+      // Regle : si un code de devise etrangere apparait sur la ligne, le
+      // montant en francs est le DERNIER nombre positif, pas le premier.
+      const montants: string[] = [];
+      let deviseEtrangere = false;
+
+      while (j < strings.length && j < i + 12) {
         const candidate = strings[j];
         if (isDate(candidate)) break; // nouvelle date = fin de cette transaction
+        const brut = candidate.trim().toUpperCase();
+        if (/^(USD|EUR|GBP|SEK|DKK|NOK|CAD|AUD|JPY|PLN|CZK)$/.test(brut)) deviseEtrangere = true;
         const amt = cleanAmount(candidate);
         // Le montant Visa est positif et > 0 (les crédits ont un - donc <= 0)
         if (candidate.match(/^\d/) && amt > 0 && !isNaN(amt)) {
-          montantStr = candidate;
+          montants.push(candidate);
           j++;
-          break;
+          if (!deviseEtrangere) break;   // en francs : un seul montant
+          if (montants.length >= 2) break; // en devise : devise puis francs
+          continue;
         }
-        if (candidate.trim()) descParts.push(candidate.trim());
+        if (candidate.trim() && montants.length === 0) descParts.push(candidate.trim());
         j++;
       }
+
+      montantStr = deviseEtrangere && montants.length >= 2
+        ? montants[montants.length - 1]
+        : (montants[0] ?? "");
 
       const description = descParts.join(" ").trim();
       const montantVal  = cleanAmount(montantStr);
