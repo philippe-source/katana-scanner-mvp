@@ -24,14 +24,40 @@ export async function GET(req: NextRequest) {
   const end   = searchParams.get("end");
   if (!start || !end) return NextResponse.json({ error: "start et end requis (YYYY-MM-DD)" }, { status: 400 });
 
-  const res = await fetch(
-    `https://api.sumup.com/v0.1/me/transactions/history?oldest_time=${start}T00:00:00.000Z&newest_time=${end}T23:59:59.000Z&limit=500`,
-    { headers: { Authorization: `Bearer ${TOKEN}` } }
-  );
-  if (!res.ok) return NextResponse.json({ error: `SumUp API ${res.status}` }, { status: 502 });
+  // SumUp ne rend que 500 transactions a la fois et signale la suite par un
+  // lien "next". Sans le suivre, tout ce qui depasse 500 disparaissait EN
+  // SILENCE : constate sur avril 2026, les 28, 29 et 30 avril entierement
+  // absents (12'542.30). On parcourt donc toutes les pages.
+  let url: string | null =
+    `https://api.sumup.com/v0.1/me/transactions/history?oldest_time=${start}T00:00:00.000Z&newest_time=${end}T23:59:59.000Z&limit=500`;
+  const brutes: Record<string, unknown>[] = [];
+  let pages = 0;
+  while (url && pages < 200) {
+    const res: Response = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!res.ok) return NextResponse.json({ error: `SumUp API ${res.status}` }, { status: 502 });
+    const page = await res.json() as {
+      items?: Record<string, unknown>[];
+      links?: { rel?: string; href?: string }[];
+    };
+    brutes.push(...(page.items ?? []));
+    pages += 1;
+    const next = (page.links ?? []).find(l => (l.rel ?? "").toLowerCase() === "next")?.href;
+    url = next ? (next.startsWith("http") ? next : `https://api.sumup.com${next}`) : null;
+  }
 
-  const data  = await res.json() as { items?: Record<string, unknown>[] };
-  const items = (data.items ?? []).filter((t) => t.status === "SUCCESSFUL" && t.type === "PAYMENT");
+  const reussies = brutes.filter((t) => t.status === "SUCCESSFUL" && t.type === "PAYMENT");
+
+  // Les paiements en ESPECES saisis sur le terminal SumUp ne transitent JAMAIS
+  // par SumUp : les billets vont dans la caisse de la boutique. Les faire entrer
+  // dans le compte de passage SumUp (220004) le gonfle indefiniment et double
+  // les ventes, puisque le meme encaissement est deja porte par la caisse.
+  // Constate sur janv-juil 2026 : 240 paiements, 35'915.25 CHF.
+  const estCash = (t: Record<string, unknown>) =>
+    String(t.payment_type ?? "").toUpperCase() === "CASH" ||
+    String(t.entry_mode ?? "").toUpperCase() === "CASH";
+  const cash  = reussies.filter(estCash);
+  const items = reussies.filter((t) => !estCash(t));
+  const cashTotal = Math.round(cash.reduce((s, t) => s + Number(t.amount ?? 0), 0) * 100) / 100;
 
   // Fetch fees en parallèle par batches
   const fees: number[] = [];
@@ -94,6 +120,10 @@ export async function GET(req: NextRequest) {
     fees_fetched: fees.filter(f => f > 0).length,
     // Couverture : a lire AVANT de passer les ecritures.
     couverture: {
+      pages_lues: pages,
+      transactions_recues: brutes.length,
+      especes_exclues: { nb: cash.length, montant: cashTotal,
+        note: "Paiements en especes du terminal : volontairement exclus, ils appartiennent a la caisse de la boutique, pas au compte SumUp." },
       ventes_lues: items.length,
       ventes_reprises: items.length - manquants.reduce((s, m) => s + m.ventes, 0),
       montant_lu: brutLu,
