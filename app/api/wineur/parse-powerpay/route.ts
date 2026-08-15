@@ -104,11 +104,35 @@ export async function POST(req: NextRequest) {
   }
 
   // Date : "St. Gallen, 18 mai 2026"
-  const mDate = text.match(/St\.\s*Gallen[,\s]+(\d{1,2})\s+([A-Za-zéèêëàâäîïôöùûüç]+)\s+(\d{4})/i);
-  if (!mDate) return NextResponse.json({ error: "Date Powerpay introuvable" }, { status: 400 });
-  const moisNum = MOIS[mDate[2].toLowerCase()];
-  if (!moisNum) return NextResponse.json({ error: `Mois inconnu: ${mDate[2]}` }, { status: 400 });
-  const date = `${mDate[3]}-${moisNum}-${mDate[1].padStart(2, "0")}`;
+  // Le nom du mois peut ressortir deforme selon la police du PDF ("aout" ->
+  // "août", "ao√ªt", "ao?t"...). On accepte donc n'importe quels caracteres
+  // non chiffres pour le mois, puis on identifie le mois sur ses 2 premieres
+  // lettres. Si rien ne marche, on retombe sur la derniere date du tableau.
+  let date = "";
+  const mDate = text.match(/St\.\s*Gallen[,\s]+(\d{1,2})\s+([^\d\s]{2,20})\s+(\d{4})/i);
+  if (mDate) {
+    const brut = mDate[2].toLowerCase();
+    let moisNum = MOIS[brut];
+    if (!moisNum) {
+      // rapprochement tolerant : "ao??t" reste reconnaissable a "ao"
+      const cle = Object.keys(MOIS).find(k => k.slice(0, 2) === brut.slice(0, 2));
+      if (cle) moisNum = MOIS[cle];
+    }
+    if (moisNum) date = `${mDate[3]}-${moisNum}-${mDate[1].padStart(2, "0")}`;
+  }
+  if (!date) {
+    // Filet de securite : la date la plus recente du tableau des transactions
+    const jours = [...text.matchAll(/\b(\d{2})\.(\d{2})\.(\d{4})\b/g)]
+      .map(m => `${m[3]}-${m[2]}-${m[1]}`)
+      .sort();
+    if (jours.length) date = jours[jours.length - 1];
+  }
+  if (!date) {
+    return NextResponse.json(
+      { error: "Date du decompte Powerpay introuvable : ni l'en-tete 'St. Gallen, ...' ni aucune date de transaction n'a pu etre lue dans ce PDF." },
+      { status: 400 },
+    );
+  }
 
   // Période : "semaine 19/20"
   const mPer = text.match(/semaine\s+([0-9]{1,2}[/\-][0-9]{1,2})/i);

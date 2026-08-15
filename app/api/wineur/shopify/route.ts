@@ -21,7 +21,16 @@ const STORES = [
     shop:  process.env.SHOPIFY_MARKETPLACE_SHOP  || process.env.MOODMARKETPLACE_SHOPIFY_DOMAIN!,
     token: process.env.SHOPIFY_MARKETPLACE_TOKEN || process.env.MOODMARKETPLACE_SHOPIFY_ACCESS_TOKEN!,
   },
-].filter(s => s.shop && s.token);
+];
+
+// Une boutique sans cle etait ecartee en silence : ses ventes disparaissaient
+// sans le moindre message. On garde desormais la liste des manquantes pour la
+// signaler dans la reponse.
+const STORES_OK      = STORES.filter(s => s.shop && s.token);
+const STORES_SANS_CLE = STORES.filter(s => !s.shop || !s.token).map(s => ({
+  name: s.name,
+  manque: !s.shop && !s.token ? "adresse et cle" : (!s.shop ? "adresse" : "cle"),
+}));
 
 async function shopifyGet(shop: string, token: string, path: string) {
   const res = await fetch(`https://${shop}/admin/api/${API_V}${path}`, {
@@ -153,7 +162,7 @@ export async function GET(req: NextRequest) {
 
   // Traiter toutes les boutiques en parallèle
   const results = await Promise.all(
-    STORES.map(s => processStore(s.shop, s.token, s.name, start, end))
+    STORES_OK.map(s => processStore(s.shop, s.token, s.name, start, end))
   );
 
   const ecritures = results.flatMap(r => r.ecritures);
@@ -161,11 +170,31 @@ export async function GET(req: NextRequest) {
   const totalPayouts = results.reduce((s, r) => s + r.payouts, 0);
   const totalOrders  = results.reduce((s, r) => s + r.orders, 0);
 
+  const alertes = [
+    ...errors,
+    ...STORES_SANS_CLE.map(s =>
+      `${s.name} : boutique NON traitee, il manque son ${s.manque}. Ses ventes ne sont PAS dans ce fichier.`
+    ),
+  ];
+
   return NextResponse.json({
     ecritures,
     payouts: totalPayouts,
     orders_fetched: totalOrders,
-    stores: STORES.map((s, i) => ({ name: s.name, payouts: results[i].payouts, error: results[i].error })),
-    ...(errors.length > 0 ? { warnings: errors } : {}),
+    stores: STORES.map(s => {
+      const i = STORES_OK.findIndex(o => o.name === s.name);
+      return i === -1
+        ? { name: s.name, traitee: false, payouts: 0, error: `cle ou adresse manquante` }
+        : { name: s.name, traitee: true, payouts: results[i].payouts, error: results[i].error };
+    }),
+    couverture: {
+      boutiques_attendues: STORES.length,
+      boutiques_traitees: STORES_OK.length,
+      complet: STORES_SANS_CLE.length === 0 && errors.length === 0,
+      avertissement: alertes.length
+        ? "Toutes les boutiques n'ont pas ete traitees : ne passe pas ces ecritures avant d'avoir corrige."
+        : null,
+    },
+    ...(alertes.length > 0 ? { warnings: alertes } : {}),
   });
 }
