@@ -138,6 +138,11 @@ export const SUMUP_COMPTES: Record<string, { lieu: string; compte: string }> = {
   // jusqu'au 14.08.2026 : 56 ventes (11'491.00 CHF) de janvier a juillet 2026
   // avaient disparu en silence, faute de cette correspondance.
   "fdv@yourmood.net":      { lieu: "Stand-foire",  compte: "320009" },
+  // Paiements par lien encaisses depuis les comptes de Stephanie et de
+  // Fabienne (mode "ECOM"). Absents de cette table jusqu'au 15.08.2026 :
+  // 6 encaissements, 9'443.95 CHF de fevrier a juillet 2026, jamais reprise.
+  "stephanie@yourmood.net": { lieu: "Online",      compte: "320001" },
+  "fabienne@yourmood.net":  { lieu: "Online",      compte: "320001" },
 };
 
 export const PAYPAL_COMPTES: Record<string, string> = {
