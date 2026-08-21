@@ -753,6 +753,52 @@ Très peu d'éléments dans l'image. FOCUS SUR LA BAGUE ET ZOOM SUR LA BAGUE. Ch
 Esthétique cinématographique premium, moderne et intemporelle. Arrière-plan minimal blanc ou sable clair, profondeur de champ douce, rendu ultra réaliste et raffiné. Sensation de luxe discret, sophistication naturelle et poésie contemporaine.
 
 🔍 FRAMING : zoom serré sur la bague (ring ~70-85% of frame width). The model's body, white fabrics, hat are supporting, soft-focused — the RING REMAINS THE HERO, perfectly sharp, with delicate prismatic highlights.`,
+
+  "luxe-joaillerie": `🚨 PHOTO EDITORIALE BAGUE PORTÉE — THÈME LUXE JOAILLERIE (beauté éditoriale, gros plan crème)
+
+The attached image is THIS EXACT Mood Collection ring — preserve it pixel-identically (same shape, color, material, finish, gemstones, decoration). The ring is the absolute hero of the photo.
+
+Compose a high-end editorial WORN-RING photograph in this exact visual language :
+
+Photo éditoriale joaillerie ultra-réaliste en très gros plan, cadrage beauté serré sur une partie du visage et la main d'une femme. Peau naturelle légèrement hâlée, parsemée de taches de rousseur réalistes, texture de peau visible, pores subtils, fini lumineux et légèrement glowy. Maquillage extrêmement naturel, lèvres nude rosées légèrement brillantes, sourcils et cils naturels.
+La main est délicatement placée contre la joue, le menton ou près des lèvres, dans une pose spontanée, féminine et élégante. Les doigts sont détendus et naturellement positionnés. La bague portée au doigt constitue le point d'attention principal de l'image, parfaitement nette et détaillée, sans modifier son design, ses proportions, ses matériaux ni ses couleurs.
+Lumière naturelle solaire et directionnelle, assez franche, créant de belles zones lumineuses sur la peau et des ombres profondes mais douces. Reflets réalistes sur les bijoux, sans surexposition. Ambiance chaude, sensuelle, moderne et premium.
+Composition minimaliste, arrière-plan blanc cassé / crème très clair, sans décor superflu. Profondeur de champ courte, visage partiellement cadré, esthétique spontanée mais sophistiquée. Photographie de campagne joaillerie haut de gamme, style éditorial mode contemporain, macro 85–100 mm, haute définition, détails extrêmement réalistes, aucune peau plastique, aucun effet CGI, rendu photographique naturel.
+
+🔍 FRAMING : gros plan beauté — la bague + la main + une partie du visage remplissent le cadre (ring ~70-85% of frame width). Le reste du visage est supporting, soft-focused — the RING REMAINS THE HERO, perfectly sharp.`,
+
+  "perspective-main": `🚨 PHOTO EDITORIALE BAGUE PORTÉE — THÈME PERSPECTIVE MAIN (main tendue vers l'objectif, perspective forcée)
+
+The attached image is THIS EXACT Mood Collection ring — preserve it pixel-identically (same shape, color, material, finish, gemstones, decoration). The ring is the absolute hero of the photo.
+
+Compose a high-end editorial WORN-RING photograph in this exact visual language :
+
+Photo éditoriale joaillerie haut de gamme, ultra-réaliste, avec perspective forcée et composition dynamique. Une femme élégante est photographiée face à l'objectif, assise ou légèrement inclinée, tandis qu'elle tend une main directement vers l'appareil photo. La main occupe une grande partie du premier plan et devient immédiatement le centre de l'image.
+Focus photographique extrêmement net sur la main et la bague, avec détails réalistes de la peau, des doigts, des ongles et du métal. La bague doit être parfaitement lisible, nette et mise en valeur, sans modifier son design, sa forme, ses proportions, ses couleurs ou ses matériaux.
+Le visage et le corps sont situés beaucoup plus loin derrière la main et volontairement flous, grâce à une profondeur de champ très faible. On reconnaît la silhouette et l'expression du modèle, mais le regard est immédiatement attiré vers le bijou au premier plan.
+Pose naturelle mais très mode : bras tendu vers l'objectif, doigts élégamment allongés ou légèrement courbés. Variante possible avec la main ouverte devant le visage, la main posée au sol ou sur une surface tandis que le corps s'éloigne dans l'arrière-plan. La perspective doit légèrement amplifier la taille de la main sans la déformer.
+Femme à l'allure sophistiquée, peau naturelle et lumineuse, manucure nude très propre, cheveux tirés en arrière ou coiffure minimaliste. Tenue monochrome élégante en satin, soie ou matière fluide, avec une couleur profonde et raffinée.
+Fond studio monochrome ou décor très épuré, dans des tonalités riches comme bordeaux, bleu nuit, vert olive, turquoise profond ou terracotta, coordonné à la tenue. Éclairage éditorial doux et directionnel, beaux contrastes, peau lumineuse et reflets maîtrisés sur le bijou.
+Esthétique campagne de joaillerie contemporaine, luxueuse, féminine et audacieuse. Objectif grand-angle/modéré utilisé à courte distance pour accentuer la perspective de la main, profondeur de champ très courte, rendu photographique premium, détails haute définition, texture de peau naturelle, aucun effet CGI, aucune main déformée, 5 doigts anatomiquement corrects, aucun texte ni logo.
+
+🔍 FRAMING : la main tendue + la bague dominent le premier plan (ring + main ~70-85% of frame), modèle flou derrière — the RING REMAINS THE HERO, perfectly sharp.`,
+
+  "clair-obscur": `🚨 PHOTO EDITORIALE BAGUE PORTÉE — THÈME CLAIR-OBSCUR (portrait cinématographique, lumière sculpturale)
+
+The attached image is THIS EXACT Mood Collection ring — preserve it pixel-identically (same shape, color, material, finish, gemstones, decoration). The ring is the absolute hero of the photo.
+
+Compose a high-end editorial WORN-RING photograph in this exact visual language :
+
+Portrait éditorial de haute joaillerie ultra-réaliste, esthétique cinématographique sombre et sophistiquée. Femme élégante photographiée en portrait très serré, visage, cou, épaules et éventuellement une main visibles. Posture sculpturale, gracieuse et minimaliste, inspirée des campagnes de haute joaillerie.
+La composition repose sur un jeu spectaculaire d'ombre et de lumière. Une lumière dure, très directionnelle et étroite traverse partiellement le modèle comme un rayon de soleil entrant à travers une ouverture. Elle éclaire certaines zones de la peau et les bijoux tandis qu'une grande partie du visage reste volontairement plongée dans une ombre noire profonde.
+Les yeux peuvent être presque entièrement dissimulés dans l'obscurité tandis que la lumière révèle uniquement la bouche, la mâchoire, le cou, la main ou certaines parties du bijou. Contraste très fort entre lumière chaude et noir profond, avec des contours d'ombre nets et graphiques.
+La main peut être placée délicatement près du visage, sur la mâchoire ou devant les yeux afin de créer naturellement des bandes d'ombre supplémentaires. Doigts fins et élégants, manucure nude très soignée, anatomie parfaitement réaliste.
+Les bijoux constituent les seuls véritables points d'éclat de la photographie : ils captent précisément le faisceau lumineux et ressortent intensément de l'obscurité. Ils doivent être extrêmement nets, détaillés et photoréalistes, sans modifier leur design, leurs proportions, leurs matériaux, leurs couleurs ou leurs pierres.
+Peau naturelle légèrement hâlée, texture réelle visible, lumière satinée sur les pommettes, lèvres nude légèrement brillantes. Cheveux tirés en arrière ou coiffure très épurée afin de renforcer la géométrie du portrait.
+Vêtement minimaliste noir, brun très sombre ou blazer structuré, épaules éventuellement dénudées. Fond noir, vert forêt extrêmement sombre, gris profond ou blanc surexposé selon la composition, sans décor inutile.
+Esthétique campagne de haute joaillerie contemporaine, mystérieuse, sensuelle et architecturale, clair-obscur moderne, photographie studio premium, contraste cinématographique, lumière sculptant le corps, ombres graphiques, profondeur de champ maîtrisée, détails haute définition, aucune peau plastique, aucun effet CGI, aucun texte ni logo.
+
+🔍 FRAMING : la lumière isole la bague qui ressort de l'ombre (ring ~70-85% of frame width), le reste du portrait en clair-obscur — the RING REMAINS THE HERO, perfectly sharp.`,
 };
 
 // Override genre + âge du modèle (mode portée seulement) — injecté en suffixe pour OVERRIDER toute mention contraire du thème
