@@ -251,14 +251,37 @@
     if(!isHeic)return Promise.resolve(file);
     return loadHeic().then(function(){return window.heic2any({blob:file,toType:'image/jpeg',quality:0.85});})
       .then(function(b){return b;}).catch(function(){return file;});}
-  function shrink(file,maxW){return preconv(file).then(function(f){return new Promise(function(res){
-    var r=new FileReader();r.onload=function(){var img=new Image();img.onload=function(){
-      var w=img.width,h=img.height;if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
-      var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
-      try{res(c.toDataURL('image/jpeg',0.82));}catch(e){res(r.result);}
-    };img.onerror=function(){res(r.result);};img.src=r.result;};r.readAsDataURL(f);});});}
-  async function filesToData(list,maxW,cap){var out=[];var n=Math.min(list.length,cap||99);
-    for(var i=0;i<n;i++){out.push(await shrink(list[i],maxW||1400));}return out;}
+  // poids approximatif (en octets) d'une image encodée en donnée intégrable
+  function estBytes(d){var i=d.indexOf(',');return Math.floor((d.length-(i+1))*0.75);}
+  // encode l'image dans un canevas et RÉDUIT tant que le poids dépasse le budget — ne renvoie JAMAIS la photo entière
+  function encodeFrom(src,sw,sh,maxW,budget){
+    var w=sw,h=sh;if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+    var q=0.82,out=null;
+    for(var pass=0;pass<9;pass++){
+      var c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(src,0,0,w,h);
+      try{out=c.toDataURL('image/jpeg',q);}catch(e){return out;}
+      if(estBytes(out)<=budget)return out;
+      if(q>0.42){q-=0.15;}else{w=Math.round(w*0.8);h=Math.round(h*0.8);q=0.7;}
+      if(w<420)return out;
+    }
+    return out;
+  }
+  // réduit puis convertit — d'abord via le décodeur moderne (createImageBitmap), sinon repli classique
+  function shrink(file,maxW,budget){maxW=maxW||1400;budget=budget||2500000;
+    return preconv(file).then(function(f){
+      var viaBitmap=window.createImageBitmap?createImageBitmap(f).catch(function(){return null;}):Promise.resolve(null);
+      return viaBitmap.then(function(bm){
+        if(bm)return encodeFrom(bm,bm.width,bm.height,maxW,budget);
+        return new Promise(function(res){var r=new FileReader();
+          r.onload=function(){var img=new Image();
+            img.onload=function(){res(encodeFrom(img,img.width,img.height,maxW,budget));};
+            img.onerror=function(){res(null);};img.src=r.result;};
+          r.onerror=function(){res(null);};r.readAsDataURL(f);});
+      });
+    });}
+  async function filesToData(list,maxW,cap,budget){var out=[];var n=Math.min(list.length,cap||99);
+    for(var i=0;i<n;i++){var d=await shrink(list[i],maxW||1400,budget);if(d)out.push(d);}return out;}
 
   // --- indicateurs de fichiers choisis ---
   function bindLabel(inputId,smallId){var inp=$(inputId),sm=$(smallId);inp.addEventListener('change',function(){
@@ -274,8 +297,8 @@
     if(!nom||!projet||!/.+@.+\..+/.test(mail)||(!hasFiche&&!desc&&!hasRefs)){$('senderr').hidden=false;return;}
     $('senderr').hidden=true;send.disabled=true;send.textContent='Envoi en cours…';
     try{
-      var fiche=hasFiche?(await filesToData($('in-fiche').files,1500,1))[0]:null;
-      var refs=hasRefs?(await filesToData($('in-refs').files,1300,6)):[];
+      var fiche=hasFiche?(await filesToData($('in-fiche').files,1400,1,1800000))[0]:null;
+      var refs=hasRefs?(await filesToData($('in-refs').files,1000,6,380000)):[];
       var r=await fetch('/api/concours-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:nom,projet:projet,mail:mail,desc:desc,fiche:fiche,refs:refs})});
       if(!r.ok)throw new Error();
       send.hidden=true;var s=$('sent');s.innerHTML='✓ Merci '+nom+' ! Ta pépite « '+projet+' » est bien partie. Notre designer va prendre soin de la mettre en visualisation 3D, puis la publiera dans la Vitrine. 🍂';s.hidden=false;
@@ -327,7 +350,11 @@
     $('mpublish').textContent=p.state==='approved'?'Mettre à jour la Vitrine':'Publier dans la Vitrine';
     $('mstatus').textContent=p.state==='approved'?'Déjà dans la Vitrine — tu peux changer son image ci-dessus.':'';
   }
-  $('mmoodinput').onchange=async function(){if(!this.files.length)return;modalMood=(await filesToData(this.files,1500,1))[0];setMoodPrev(modalMood);};
+  $('mmoodinput').onchange=async function(){if(!this.files.length)return;
+    $('mstatus').textContent='Préparation de l’image…';
+    modalMood=(await filesToData(this.files,1500,1,2400000))[0]||null;
+    if(!modalMood){$('mstatus').textContent="Cette image n’a pas pu être lue — essaie une autre photo (JPEG de préférence).";setMoodPrev(null);return;}
+    $('mstatus').textContent='';setMoodPrev(modalMood);};
   $('mpublish').onclick=async function(){
     if(!modalProject){$('mstatus').textContent='Le projet charge encore — réessaie dans une seconde.';return;}
     var img=modalMood||((modalProject.moodImages&&modalProject.moodImages.length)?modalProject.moodImages[0]:null);
