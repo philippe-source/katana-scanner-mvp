@@ -138,7 +138,9 @@ export async function GET(req: NextRequest) {
     if (code === "T1107") {
       const brut = Math.abs(rawAmt);
       const lib  = `Rembt PayPal${nom !== "PayPal" ? ": " + nom : ""}`;
-      const isRefundCH = code === "T1107" || isCH;
+      // Le pays de la cliente decide, pas le code du mouvement : un remboursement
+      // a une cliente hors Suisse ne reprend aucune TVA suisse.
+      const isRefundCH = isCH;
       if (isRefundCH) {
         // Si remboursement en devise : convertir en CHF pour le montant de
         // référence (HT/TVA + ligne du compte), et garder le montant d'origine
@@ -151,9 +153,9 @@ export async function GET(req: NextRequest) {
         e(ecritures, date, cpte,              lib,          -brutChf, devise !== "CHF" ? -brut : undefined, devise !== "CHF" ? devise : undefined);
       } else {
         // Étranger : pas de TVA suisse → montant CHF converti via ESTV
-        const brutChf = r2(brut * await getESTVRate(date, devise));
-        e(ecritures, date, COMPTES.VENTE_GEN, lib,  brutChf);
-        e(ecritures, date, cpte,              lib, -brutChf, -brut, devise);
+        const brutChf = devise !== "CHF" ? r2(brut * await getESTVRate(date, devise)) : brut;
+        e(ecritures, date, COMPTES.VENTE_ETRANGER, lib,  brutChf);
+        e(ecritures, date, cpte,                   lib, -brutChf, devise !== "CHF" ? -brut : undefined, devise !== "CHF" ? devise : undefined);
       }
       continue;
     }
