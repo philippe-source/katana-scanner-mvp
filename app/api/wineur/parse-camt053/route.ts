@@ -304,8 +304,8 @@ function buildEcritures(entries: CamtEntry[], config: Record<string, string>): {
         ecritures.push({ date, compte: COMPTES.VENTE_GEN, libelle: `${lib} HT`,  montant: -ht    });
         ecritures.push({ date, compte: COMPTES.TVA_VENTE, libelle: `${lib} TVA`, montant: -tva   });
       } else {
-        ecritures.push({ date, compte: pfCompte,          libelle: lib, montant:  amount });
-        ecritures.push({ date, compte: COMPTES.VENTE_GEN, libelle: lib, montant: -amount });
+        ecritures.push({ date, compte: pfCompte,               libelle: lib, montant:  amount });
+        ecritures.push({ date, compte: COMPTES.VENTE_ETRANGER, libelle: lib, montant: -amount });
       }
       continue;
     }

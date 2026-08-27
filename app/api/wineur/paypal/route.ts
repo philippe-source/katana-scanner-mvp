@@ -184,12 +184,12 @@ export async function GET(req: NextRequest) {
       } else {
         // Client étranger → pas de TVA suisse
         if (devise === "CHF") {
-          e(ecritures, date, cpte,              lib, brut);
-          e(ecritures, date, COMPTES.VENTE_GEN, lib, -brut);
+          e(ecritures, date, cpte,                   lib, brut);
+          e(ecritures, date, COMPTES.VENTE_ETRANGER, lib, -brut);
         } else {
           const brutChf = r2(brut * await getESTVRate(date, devise));
-          e(ecritures, date, cpte,              lib,  brutChf, brut, devise);
-          e(ecritures, date, COMPTES.VENTE_GEN, lib, -brutChf);
+          e(ecritures, date, cpte,                   lib,  brutChf, brut, devise);
+          e(ecritures, date, COMPTES.VENTE_ETRANGER, lib, -brutChf);
         }
       }
 

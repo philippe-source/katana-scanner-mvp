@@ -20,6 +20,7 @@ export const COMPTES = {
   FRAIS:               "640004",
   COMMISSION:          "640002",
   VENTE_GEN:           "320001",
+  VENTE_ETRANGER:      "320006",   // ventes a des clients hors Suisse, sans TVA suisse
   DIFF_CHANGE:         "670004",
 } as const;
 

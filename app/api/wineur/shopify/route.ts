@@ -111,8 +111,9 @@ async function processStore(
         if (isCH) {
           ecritures.push(...formatEcriture(date, libelle, amount, COMPTES.VENTE_GEN, fee, "CH", COMPTES.PASSAGE_SHOPIFY));
         } else {
+          // Client hors Suisse : pas de TVA suisse, et vente rangee dans "Ventes a l'etranger"
           ecritures.push({ date, compte: COMPTES.PASSAGE_SHOPIFY, libelle, montant: amount });
-          ecritures.push({ date, compte: COMPTES.VENTE_GEN, libelle, montant: -amount });
+          ecritures.push({ date, compte: COMPTES.VENTE_ETRANGER, libelle, montant: -amount });
           if (fee > 0) {
             ecritures.push({ date, compte: COMPTES.FRAIS, libelle: `Frais ${libelle}`, montant: fee });
             ecritures.push({ date, compte: COMPTES.PASSAGE_SHOPIFY, libelle: `Frais ${libelle}`, montant: -fee });
@@ -126,7 +127,7 @@ async function processStore(
           ecritures.push({ date, compte: COMPTES.TVA_VENTE, libelle: `Rembt ${libelle} TVA`, montant: tva });
         } else {
           ecritures.push({ date, compte: COMPTES.PASSAGE_SHOPIFY, libelle: `Rembt ${libelle}`, montant: -amount });
-          ecritures.push({ date, compte: COMPTES.VENTE_GEN, libelle: `Rembt ${libelle}`, montant: amount });
+          ecritures.push({ date, compte: COMPTES.VENTE_ETRANGER, libelle: `Rembt ${libelle}`, montant: amount });
         }
       } else {
         ecritures.push({ date, compte: COMPTES.PASSAGE_SHOPIFY, libelle, montant: amount > 0 ? amount : -Math.abs(amount) });
