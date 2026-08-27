@@ -134,14 +134,9 @@ async function processStore(
       }
     }
 
-    // Virement payout → compte bancaire PostFinance (100101 = IBAN ends 5, compte principal)
-    for (const [payoutId, { date, amount }] of payoutMeta) {
-      if (amount > 0) {
-        const lib = `Virement ${storeName} payout-${payoutId}`;
-        ecritures.push({ date, compte: "100101",                 libelle: lib, montant:  amount });
-        ecritures.push({ date, compte: COMPTES.PASSAGE_SHOPIFY,  libelle: lib, montant: -amount });
-      }
-    }
+    // Le virement du payout vers la banque n'est PAS enregistré ici : il arrive par
+    // l'import du relevé PostFinance (CRDT "stripe payments" → 100101 / 220006).
+    // Deux sources pour la même écriture = doublons dès qu'une période est rejouée.
 
     return { ecritures, payouts: payouts.length, orders: orderIds.length };
   } catch (err) {

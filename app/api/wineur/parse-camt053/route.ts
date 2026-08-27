@@ -8,12 +8,10 @@ import type { UnknownEntry } from "@/lib/wineur/mappings";
 // SubFmlyCd → paiement OPAE généré depuis GIT/WinEUR → ignorer
 const OPAE_SUB = new Set(["DMCT", "XBCT", "ESCT", "BOOK"]);
 
-// Shopify (Stripe) → ignorer car déjà enregistré dans la route Shopify (virement 100101/220006)
-const CRDT_SHOPIFY_KEYWORD = "stripe payments";
-
 // Autres providers de paiement → CRDT = virement provider → banque PostFinance
 // Enregistrer : débit pfCompte (banque PostFinance) / crédit compte passage provider
 const PROVIDER_PASSAGE: Record<string, string> = {
+  "stripe payments": "220006",  // Shopify/Stripe passage (la route Shopify ne l'enregistre plus)
   "sumup payments":  "220004",  // SumUp passage
   "twint acquiring": "220003",  // Twint passage
   "paypal":          "100401",  // PayPal CHF
@@ -237,12 +235,6 @@ function buildEcritures(entries: CamtEntry[], config: Record<string, string>): {
     const isOpaeGrouped = direction === "DBIT" && addtlLc.includes("ordre groupé opae");
     if ((direction === "DBIT" && OPAE_SUB.has(subFmlyCd)) || isOpaeGrouped) {
       stats.opae++;
-      continue;
-    }
-
-    // ── CRDT Shopify/Stripe → ignorer (virement déjà enregistré dans la route Shopify) ──
-    if (direction === "CRDT" && addtlLc.includes(CRDT_SHOPIFY_KEYWORD)) {
-      stats.crdt_skip++;
       continue;
     }
 
