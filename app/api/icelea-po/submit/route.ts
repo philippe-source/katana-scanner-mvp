@@ -51,9 +51,11 @@ export async function POST(req: NextRequest) {
       scannedPairs?: ScannedPair[];
       expectedArrival?: string | null;
       targetPoId?: number | null;
+      sendEmails?: boolean;
     };
 
     const { supplierId, supplierName, items, shopifyOrderIds, scannedPairs, expectedArrival, targetPoId } = body;
+    const sendEmails = body.sendEmails !== false; // par défaut on envoie, comme avant
 
     if (!supplierId || !items?.length) {
       return NextResponse.json({ error: "supplierId et items requis" }, { status: 400 });
@@ -176,7 +178,7 @@ export async function POST(req: NextRequest) {
       if (insertError) console.error("[icelea-po/submit] Supabase insert failed:", insertError.message);
     }
 
-    if (pairsSnapshot.length) {
+    if (pairsSnapshot.length && sendEmails) {
       after(async () => {
         console.log(`[icelea-po/submit] after() — processing ${pairsSnapshot.length} email(s)`);
         const uniqueOrderIds = [...new Set(pairsSnapshot.map((p) => p.orderId))];
@@ -295,7 +297,7 @@ export async function POST(req: NextRequest) {
       poId: po.id,
       poNumber: po.number,
       deliveryDate: po.deliveryDate,
-      emailsQueued: pairsSnapshot.length,
+      emailsQueued: sendEmails ? pairsSnapshot.length : 0,
       merged: mergeSummary,
     });
   } catch (err) {

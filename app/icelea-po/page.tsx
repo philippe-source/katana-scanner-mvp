@@ -69,6 +69,7 @@ export default function IceleaPOPage() {
   const [openPos, setOpenPos] = useState<OpenPO[]>([]);
   const [openPosLoading, setOpenPosLoading] = useState(false);
   const [targetPoId, setTargetPoId] = useState<number | "">("");
+  const [sendEmails, setSendEmails] = useState(true);
 
   // Manual ingredient lookup — either by product name (recipe → Icelea component)
   // or directly by the Icelea ingredient SKU.
@@ -409,6 +410,7 @@ export default function IceleaPOPage() {
           scannedPairs,
           expectedArrival: expectedArrival || null,
           targetPoId: targetPoId || null,
+          sendEmails,
         }),
       });
       const data = await res.json() as { ok?: boolean; poNumber?: string; deliveryDate?: string | null; error?: string; merged?: { increased: number; added: number } | null };
@@ -591,6 +593,11 @@ export default function IceleaPOPage() {
             </div>
           )}
           <p style={{ color: "#888", fontSize: 13, marginTop: 12 }}>Email envoyé à philippe@yourmood.net</p>
+          {!sendEmails && (
+            <p style={{ color: "#b26a00", fontSize: 13, marginTop: 8 }}>
+              Aucun email n&apos;a été envoyé aux clientes.
+            </p>
+          )}
 
           {resendDone === null ? (
             <button
@@ -1068,6 +1075,22 @@ export default function IceleaPOPage() {
             Les articles scannés seront ajoutés à ce bon de commande (quantité additionnée si déjà présent).
           </div>
         )}
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 15 }}>
+          <input
+            type="checkbox"
+            checked={sendEmails}
+            onChange={(e) => setSendEmails(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: "pointer" }}
+          />
+          Prévenir les clientes par email
+        </label>
+        <div style={{ color: sendEmails ? "#888" : "#b26a00", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+          {sendEmails
+            ? "Chaque cliente concernée reçoit un email lui annonçant le délai."
+            : "Aucun email ne partira. Le bon de commande est créé normalement et les emails restent envoyables plus tard depuis l'écran de confirmation."}
+        </div>
       </div>
       <div style={{ color: "#888", fontSize: 12, marginTop: 16, lineHeight: 1.5 }}>
         Flux : scanner la commande client → scanner les articles → Tab pour la commande suivante → Clore le PO
